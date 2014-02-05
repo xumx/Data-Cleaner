@@ -1,0 +1,38 @@
+.alizarin {
+    font-size: 1.5em;
+    color: #e74c3c;
+}
+.map-input {
+    background: none !important;
+    width: auto !important;
+    height: 1.5em !important;
+    font-size: 1.2em !important;
+    box-shadow: none !important;
+}
+.map-input.alizarin {
+    border-color: #e74c3c !important;
+}
+.map-input.sunflower {
+    border-color: #f1c40f !important;
+}
+.map-input.emerald {
+    border-color: #2ecc71 !important;
+}
+
+.label {
+	display: inline-block;
+}
+
+.nested {
+    margin-left: 4em;
+}
+
+.hover {
+    margin-right: 5px;
+    padding-right: 5px;
+    padding-left: 5px;
+}
+
+.hover:hover {
+    background-color: #f1c40f
+}
