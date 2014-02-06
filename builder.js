@@ -439,12 +439,12 @@ if (Meteor.isClient) {
 			
 			if (op instanceof Array) {
 				for (var i = 0; i < op.length; i++) {
-					cursor.push(op[i]);
+					cursor.push(_.clone(op[i]));
 				}
 			} else if (typeof op == 'function'){
 				cursor.push(op());
 			} else {
-				cursor.push(op)
+				cursor.push(_.clone(op))
 			}
 
 			utility.render();
