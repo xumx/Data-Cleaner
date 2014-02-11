@@ -85,6 +85,7 @@
 					<div class="btn-group">
 						<button class="btn btn-xs btn-primary use-schema" style="width:80px;">use</button>
 						<button class="btn btn-xs btn-danger delete-schema" style="width:80px;">delete</button>
+						<a class="btn btn-xs download-schema" download="schema.csv" style="width:80px;">download</a>
 					</div>
 				</td>
 			</tr>
@@ -202,8 +203,8 @@
 
 		<div class="row">
 			<div class="btn-group offset1">
-				<a class="btn preview btn-primary">Preview</a>
-				<a class="btn preview-valid btn-primary">Preview cleaned data</a>
+				<a class="btn preview btn-primary">Preview invalid rows</a>
+				<a class="btn preview-valid btn-primary">Preview valid rows</a>
 			</div>
 
 			<div class="btn-group">
@@ -288,52 +289,9 @@
 		</div>
 
 		<div class="btn-group">
-			<div class="dropdown">
-				<a id="source-date-format" class="dropdown-toggle btn btn-xs btn-primary" data-toggle="dropdown" data-target="#">
-					Date format in raw data
-				</a>
-				<ul class="dropdown-menu">
-					<li>
-						<a class="source-date-format">yyyy/mm/dd</a>
-					</li>
-					<li>
-						<a class="source-date-format">dd/mm/yyyy</a>
-					</li>
-					<li>
-						<a class="source-date-format">mm/dd/yyyy</a>
-					</li>
-					<li>
-						<a class="source-date-format">yymm</a>
-					</li>
-					<li>
-						<a class="source-date-format">yyyymmdd</a>
-					</li>
-				</ul>
-			</div>
+			<input id="source-date-format" type="text"></input>
 		</div>
 		<div class="btn-group">
-			<div class="dropdown">
-				<a id="desired-date-format" class="dropdown-toggle btn btn-xs btn-primary" data-toggle="dropdown" data-target="#">
-					Desired date format
-				</a>
-				<ul class="dropdown-menu">
-					<li>
-						<a class="desired-date-format">yyyy/mm/dd</a>
-					</li>
-					<li>
-						<a class="desired-date-format">dd/mm/yyyy</a>
-					</li>
-					<li>
-						<a class="desired-date-format">mm/dd/yyyy</a>
-					</li>
-					<li>
-						<a class="desired-date-format">yymm</a>
-					</li>
-					<li>
-						<a class="desired-date-format">yyyymmdd</a>
-					</li>
-				</ul>
-			</div>
-
+			<input id="desired-date-format" type="text"></input>
 		</div>
 	</template>

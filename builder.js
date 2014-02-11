@@ -2,7 +2,7 @@ var Schemas = new Meteor.Collection('schema');
 var Datafiles = new CollectionFS('datafile');
 
 var _DATE_REGEXP = '^(19|20)\\d\\d([- /.])(0[1-9]|1[012])\\2(0[1-9]|[12][0-9]|3[01])$';
-
+var DATE_FORMAT = 'YYYY-MM-DD';
 var Core = {
 	prepareData: function(raw, schema) {
 		var result = {
@@ -17,6 +17,10 @@ var Core = {
 
 			_.each(schema, function(col, cindex) {
 				var value = Core.compute(col.statement, row, computedRow);
+
+				if (value !== null && value._isAMomentObject) {
+					value = value.format(col.validation.date || DATE_FORMAT);
+				}
 
 				Core.validate(value, col.validation, function(error) {
 
@@ -62,14 +66,14 @@ var Core = {
 			element = statement.shift();
 
 			if (element.type == 'condition') {
-				cond = Core.compute(element['if'], data);
+				cond = Core.compute(element['if'], data, computedRow);
 
 				if (typeof cond == 'boolean') {
 					if (cond) {
-						result = Core.compute(element['then'], data);
+						result = Core.compute(element['then'], data, computedRow);
 						return result;
 					} else {
-						result = Core.compute(element['else'], data);
+						result = Core.compute(element['else'], data, computedRow);
 						return result;
 					}
 				} else {
@@ -79,7 +83,7 @@ var Core = {
 				}
 
 			} else if (element.type == 'nest') {
-				result = Core.compute(element.child, data);
+				result = Core.compute(element.child, data, computedRow);
 
 				if (holder == null && operator == null) {
 					holder = result;
@@ -104,8 +108,11 @@ var Core = {
 				if (typeof value == 'string') {
 					value = value.trim();
 
+
 					if (utility.isNumber(value)) {
 						value = parseFloat(value);
+					} else if (moment(value, DATE_FORMAT, true).isValid()) {
+						value = moment(value, DATE_FORMAT);
 					}
 				}
 
@@ -179,28 +186,30 @@ var Core = {
 			callback();
 		} else if (validation.fixedLength != null && data.length != validation.fixedLength) {
 			callback('Value Length Violation at row ' + rindex);
-		} else if (validation.pattern != null && !data.match(new RegExp(validation.pattern))) {
+		} else if (validation.pattern != null && typeof data == 'string' && !data.match(new RegExp(validation.pattern))) {
 			callback('Data Pattern Violation at row ' + rindex);
 		} else if (validation.type != null) {
+			callback();
 			//Is Date
-			if (validation.type == 'number') {
-				if (typeof data == 'number') {
-					callback();	
-				} else {
-					callback('Data type mismatch - Expects number but receives' + typeof data);
-				}
-			}
+			// if (validation.type == 'number') {
+			// 	if (typeof data == 'number') {
+			// 		callback();	
+			// 	} else {
+			// 		callback('Data type mismatch - Expects number but receives ' + typeof data);
+			// 	}
+			// }
 
-			if (validation.type == 'string') {
-				callback();
-			}
+			// if (validation.type == 'string') {
+			// 	callback();
+			// }
 
-			if (validation.type == 'date' && data.match(new RegExp(_DATE_REGEXP))) {
-				callback();
-			} else {
-				callback('Data type mismatch');	
-			}
-
+			// if (validation.type == 'date' && typeof data == 'string' && data.match(new RegExp(_DATE_REGEXP))) {
+			// 	callback();
+			// } else {
+			// 	callback('Data type mismatch');	
+			// }
+		} else if (validation.date != null && !moment(validation.date, data).isValid()) {
+			callback();
 		} else if (validation.maxValue != null && parseFloat(data) > validation.maxValue) {
 			callback('Data Range Violation at row ' + rindex);
 		} else if (validation.minValue != null && parseFloat(data) < validation.minValue) {
@@ -242,14 +251,22 @@ if (Meteor.isClient) {
 			type: 'operator',
 			text: '+',
 			fn: function(a, b) {
-				return a + b;
+				if (a._isAMomentObject && utility.isNumber(b)) {
+					return a.add('days', b);
+				} else {
+					return a + b;					
+				}
 			}
 		},
 		minus: {
 			type: 'operator',
 			text: '-',
 			fn: function(a, b) {
-				return a - b;
+				if (a._isAMomentObject && utility.isNumber(b)) {
+					return a.subtract('days', b);
+				} else {
+					return a - b;					
+				}
 			}
 		},
 		divide: {
@@ -359,11 +376,15 @@ if (Meteor.isClient) {
 				try {
 					b = parseInt(b);
 
-					var match = a.match(/(\d+(\.\d+)?)/g);
-					if (match) {
-						return match[b-1];
+					if (typeof a == 'string') {
+						var match = a.match(/(\d+(\.\d+)?)/g);
+						if (match) {
+							return match[b-1];
+						} else {
+							return '';
+						}
 					} else {
-						return ''
+						return '';
 					}
 				} catch (e) {
 					return '';
@@ -377,7 +398,7 @@ if (Meteor.isClient) {
 		},{
 			type: 'operator',
 			text: '\'s number of occurance in',
-			fn: function () {
+			fn: function (a, b) {
 				var match = b.match(a);
 				if (match) {
 					return match.length;
@@ -449,18 +470,18 @@ if (Meteor.isClient) {
 
 			utility.render();
 		},
-		get: function(id, statement) {
+		// get: function(id, statement) {
 
-			for (var i = 0; i < statement.length; i++) {
-				if (statement[i].id == id) {
-					return statement[i];
-				} else if (statement[i].type == 'condition') {
-					return utility.get(id, statement[i]['if']) || utility.get(id, statement[i]['then']) || utility.get(id, statement[i]['else']);
-				}
-			}
+		// 	for (var i = 0; i < statement.length; i++) {
+		// 		if (statement[i].id == id) {
+		// 			return statement[i];
+		// 		} else if (statement[i].type == 'condition') {
+		// 			return utility.get(id, statement[i]['if']) || utility.get(id, statement[i]['then']) || utility.get(id, statement[i]['else']);
+		// 		}
+		// 	}
 
-			return false;
-		},
+		// 	return false;
+		// },
 
 		processCSV: function(csv) {
 			//Convert data into 2D array
@@ -537,6 +558,12 @@ if (Meteor.isClient) {
 				val.find('[name=type][value=' + current.validation.type + ']').attr('checked', true);
 			} else {
 				val.find('[name=type]').attr('checked', false);
+			}
+
+			if (current.validation.date != null) {
+				//TODO
+			} else {
+				//TODO
 			}
 
 			if (current.validation.fixedLength != null) {
@@ -659,7 +686,6 @@ if (Meteor.isClient) {
 							type: 'field',
 							text: row,
 							col: index,
-							id: _.uniqueId('G' + sessionKey + '_'),
 							circular:true
 						});
 
@@ -966,6 +992,10 @@ if (Meteor.isClient) {
 		},
 		'click .delete-schema': function() {
 			Schemas.remove(this._id);
+		},
+		'click .download-schema': function() {
+
+			$('.download-schema').attr('href', "data:text/json;charset=utf-8, " + escape(this.goal));
 		}
 	}
 
@@ -990,12 +1020,13 @@ if (Meteor.isClient) {
 			utility.render();
 		},
 
-		'click .desired-date-format': function (e) {
-			$('#desired-date-format').text('Target: ' + e.target.text);
+		'blur #desired-date-format': function (e) {
+			var format = $('#desired-date-format').val();
+			current.validation.date = format;	
 		},
 
-		'click .source-date-format': function (e) {
-			$('#source-date-format').text('Source: ' + e.target.text);
+		'blur #source-date-format': function (e) {
+			DATE_FORMAT = $('#source-date-format').val();
 		}
 	}
 
@@ -1007,14 +1038,16 @@ if (Meteor.isClient) {
 			that.text("loading…");
 			
 			_.defer(function() {
-				that.text("Preview cleaned results");
+				that.text("Preview valid rows");
 
 				var data = Core.prepareData(csvData, goal);
 				invalid_table.loadData(data.valid.slice(0, 50));
 
-				
 				$('#error-count').empty();
 				$('#error-box').empty();
+
+				var headers = _.pluck(goal, 'header');
+				data.valid.unshift(headers);
 				$('.download-csv').attr('href', "data:text/csv;charset=utf-8, " + escape($.csv.fromArrays(data.valid)));
 			});
 		},
@@ -1026,21 +1059,24 @@ if (Meteor.isClient) {
 
 				var data = Core.prepareData(csvData, goal);
 
-				invalid_table.loadData(data.invalid.slice(0, 50));
-
-				$('#error-box').empty();
-				_.each(data.errors, function(error) {
-					$('#error-box').append(error + '<br>');
-				});
-
-				that.text("Preview");
-
 				if (data.invalid.length > 0) {
+
+					invalid_table.loadData(data.invalid.slice(0, 50));
+
+					$('#error-box').empty();
+					_.each(data.errors, function(error) {
+						$('#error-box').append(error + '<br>');
+					});
+
+					that.text("Preview invalid rows");
+					
 					$('#error-count').text(data.invalid.length+ '/' + (data.valid.length + data.invalid.length) + ' rows are invalid. Please correct the errors.')
 				} else {
-					$('#error-count').empty();
+					$('#error-count').empty().text('There are no errors');
 				}
 
+				var headers = _.pluck(goal, 'header');
+				data.valid.unshift(headers);
 				$('.download-csv').attr('href', "data:text/csv;charset=utf-8, " + escape($.csv.fromArrays(data.valid)));
 			});
 		},
@@ -1074,12 +1110,9 @@ if (Meteor.isClient) {
 			setTimeout(function() {
 				$(e.target).toggleClass('btn-primary btn-success').text('Save as');
 			}, 2000);
-		},
-
-		'click .download-config': function() {
-
-			$('.download-config').attr('href', "data:text/json;charset=utf-8, " + escape(JSONfn.stringify(goal)));
 		}
+
+		
 	}
 
 	Meteor.startup(function() {
@@ -1135,7 +1168,8 @@ if (Meteor.isClient) {
 							minValue: null,
 							type: null,
 							pattern: null,
-							dictionary: null
+							dictionary: null,
+							date: null
 						},
 						rules: null
 					}
