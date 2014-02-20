@@ -1,297 +1,300 @@
 <body>
-	<div class="container">
-		<div class="pull-right" style="margin:10px;">{{loginButtons align="right"}}</div>
+    <div class="container">
+        <div class="pull-right" style="margin:10px;">{{loginButtons align="right"}}</div>
 
 
-		<div class="well">
-			{{> section0}}
-			{{> section1}}
-			{{> section2}}
-			{{> section3}}
-			{{> preview}}
-		</div>
-	</div>
+        <div class="well">
+            {{> section0}} {{> section1}} {{> section2}} {{> section3}} {{> preview}}
+        </div>
+    </div>
 </body>
 
 <template name="section0">
-	<section class="jumbotron">
-		<h1>Data Robot</h1>
-		<p>
-			Automatic data cleaning and transformation tool.
-			<br>
-			<br>
-			<a class="btn btn-large btn-primary goto1" style="width:300px;">Begin</a>
-		</p>
+    <section class="jumbotron">
+        <h1>Data Robot</h1>
+        <p>
+            Automatic data cleaning and transformation tool.
+            <br>
+            <br>
+            <a class="btn btn-large btn-primary goto1" style="width:300px;">Begin</a>
+        </p>
 
-	</section>
+    </section>
 </template>
 
 <template name="section1">
-	<section id="section1">
-		<h1>Step 1: Select raw CSV Data File</h1>
+    <section id="section1">
+        <h1>Step 1: Select raw CSV Data File
+            <small>({{selectedDataFile}})</span>
+        </h1>
 
-		<table class="table table-bordered" style="width:75%;background:white;font-size:1.2em;">
+        <table class="table table-bordered" style="width:75%;background:white;font-size:1.2em;">
 
-			<tr>
-				<th>Customer</th>
-				<th>Filename</th>
-				<th>Action</th>
-			</tr>
+            <tr>
+                <th>Customer</th>
+                <th>Filename</th>
+                <th>Action</th>
+            </tr>
 
-			{{#each files}}
-			<tr>
-				<td>{{metadata.customer}}</td>
-				<td>{{filename}}</td>
-				<td>
-					<div class="btn-group">
-						<button class="btn btn-xs btn-primary use-datafile" style="width:80px;">use</button>
-						<button class="btn btn-xs btn-danger delete-datafile" style="width:80px;">delete</button>
-					</div>
-				</td>
-			</tr>
-			{{else}}
-			<tr>
-				<td>No files in database.</td>
-			</tr>
-			{{/each}}
-			<tr>
-				<td></td>
-				<td>
-					or upload a new CSV file
-				</td>
-				<td>
-					<input type="file" id="files" name="file" />
-				</td>
-			</tr>
-		</table>
-	</section>
-	<hr>
+            {{#each files}}
+            <tr>
+                <td>{{metadata.customer}}</td>
+                <td>{{filename}}</td>
+                <td>
+                    <div class="btn-group">
+                        <button class="btn btn-xs btn-primary use-datafile" style="width:80px;">use</button>
+                        <button class="btn btn-xs btn-danger delete-datafile" style="width:80px;">delete</button>
+                    </div>
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td>No files in database.</td>
+            </tr>
+            {{/each}}
+            <tr>
+                <td></td>
+                <td>
+                    or upload a new CSV file
+                </td>
+                <td>
+                    <input type="file" id="files" name="file" />
+                </td>
+            </tr>
+        </table>
+    </section>
+    <hr>
 </template>
 
 <template name="section2">
-	<section id="section2">
-		<h1>Step 2: Select a schema file
-			<span> : {{selectedSchema}}</span>
-		</h1>
+    <section id="section2">
+        <h1>Step 2: Select a schema file
+            <small>({{selectedSchema}})</small>
+        </h1>
 
-		<table class="table table-bordered" style="width:75%;background:white;font-size:1.2em;">
+        <table class="table table-bordered" style="width:75%;background:white;font-size:1.2em;">
 
-			{{#each list}}
-			<tr>
-				<td style="vertical-align: middle;">
-					{{schema}}
-				</td>
-				<td>
-					<div class="btn-group">
-						<button class="btn btn-xs btn-primary use-schema" style="width:80px;">use</button>
-						<button class="btn btn-xs btn-danger delete-schema" style="width:80px;">delete</button>
-						<a class="btn btn-xs download-schema" download="schema.csv" style="width:80px;">download</a>
-					</div>
-				</td>
-			</tr>
-			{{/each}}
-
-			{{#if dev}}
-			<tr>
-				<td>Upload a new schema</td>
-				<td>
-					<input type="file" id="template" name="file" />
-				</td>
-			</tr>
-			{{/if}}
-			<tr>
-				<td>
-					Generate schema using sample file
-				</td>
-				<td>
-					<input type="file" id="sample" name="file" />
-				</td>
-			</tr>
-		</table>
-	</section>
-	<hr>
+            {{#each list}}
+            <tr>
+                <td style="vertical-align: middle;">
+                    {{schema}}
+                </td>
+                <td>
+                    <div class="btn-group">
+                        <button class="btn btn-xs btn-primary use-schema" style="width:80px;">use</button>
+                        <button class="btn btn-xs btn-danger delete-schema" style="width:80px;">delete</button>
+                        <a class="btn btn-xs download-schema" download="schema.csv" style="width:80px;">download</a>
+                    </div>
+                </td>
+            </tr>
+            {{/each}} {{#if dev}}
+            <tr>
+                <td>Upload a new schema</td>
+                <td>
+                    <input type="file" id="template" name="file" />
+                </td>
+            </tr>
+            {{/if}}
+            <tr>
+                <td>
+                    Generate schema using sample file
+                </td>
+                <td>
+                    <input type="file" id="sample" name="file" />
+                </td>
+            </tr>
+        </table>
+    </section>
+    <hr>
 </template>
 
 <template name="section3">
-	<section id="section3">
-		<h1>Step 3: Define field mappings</h1>
+    <section id="section3">
+        <h1>Step 3: Define field mappings</h1>
 
-		<div id="paging" style="width:100%;"></div>
-		{{> mapping}}
+        <div id="paging" style="width:100%;"></div>
+        {{> mapping}}
 
 
-		<!-- <div class="row">
+        <!-- <div class="row">
 			<div id="list" class="span3">
 				{{metadata}}	
 			</div>
 		</div>
 	-->
-</section>
+    </section>
 </template>
 
 <template name="mapping">
-	<div id="mapping">
-		<legend class="muted">Mapping Rules </legend>
-		
-		<div class="container">
-			<span class="goal alizarin hover"></span>
-			<span class="alizarin">=</span>
+    <div id="mapping">
+        <legend class="muted">Mapping Rules</legend>
 
-			<span class="map">
-			</span>
-			{{> toolbox}}
-			<div id="tagcloud"></div>
-		</div>
+        <div class="container">
+            <span class="goal alizarin hover"></span>
+            <span class="alizarin">=</span>
 
-		<br>
+            <span class="map">
+            </span>
+            {{> toolbox}}
+            <div id="tagcloud"></div>
+        </div>
 
-		<legend class="muted">Validation Rules</legend>
-		<div id="validation" class="container">
-			<div class="span3">
-				<label class="checkbox">
-					<input type="checkbox" name="allowBlank">Allow Blanks
-				</label>
+        <br>
 
-				<label class="checkbox">
-					<input type="checkbox" name="hasFixedLength">has a fixed length
-				</label>
-				&nbsp;&nbsp;&nbsp;
-				<input type="number" name="fixedLength" style="height:40px;">
+        <legend class="muted">Validation Rules</legend>
+        <div id="validation" class="container">
+            <div class="span3">
+                <label class="checkbox">
+                    <input type="checkbox" name="allowBlank">Allow Blanks
+                </label>
+
+                <label class="checkbox">
+                    <input type="checkbox" name="hasFixedLength">has a fixed length
+                </label>
+                &nbsp;&nbsp;&nbsp;
+                <input type="number" name="fixedLength" style="height:40px;">
 
 
-				<label class="checkbox">
-					<input type="checkbox" name="hasPattern">has string pattern
-				</label>
-				&nbsp;&nbsp;&nbsp;
-				<input type="string" name="pattern" style="height:40px;">
-			</div>
+                <label class="checkbox">
+                    <input type="checkbox" name="hasPattern">has string pattern
+                </label>
+                &nbsp;&nbsp;&nbsp;
+                <input type="string" name="pattern" style="height:40px;">
+            </div>
 
-			<div class="span3">
-				<label class="radio-inline">
-					<input type="radio" name="type" value="string">text
-				</label>
-				<label class="radio-inline">
-					<input type="radio" name="type" value="number">number
-				</label>
-				<label class="radio-inline">
-					<input type="radio" name="type" value="date">date
-				</label>
+            <div class="span3">
+                <label class="radio-inline">
+                    <input type="radio" name="type" value="date">date
+                </label>
+                <label class="radio-inline">
+                    <input type="radio" name="type" value="location">location
+                </label>
+                <label class="checkbox">
+                    <input type="checkbox" name="hasMaxValue">has a maximum value of
+                </label>
+                &nbsp;&nbsp;&nbsp;
+                <input type="number" step="any" name="maxValue" style="height:40px;">
 
-				<label class="checkbox">
-					<input type="checkbox" name="hasMaxValue">has a maximum value of
-				</label>
-				&nbsp;&nbsp;&nbsp;
-				<input type="number" step="any" name="maxValue" style="height:40px;">
+                <label class="checkbox">
+                    <input type="checkbox" name="hasMinValue">has a minimum value of
+                </label>
+                &nbsp;&nbsp;&nbsp;
+                <input type="number" step="any" name="minValue" style="height:40px;">
+            </div>
 
-				<label class="checkbox">
-					<input type="checkbox" name="hasMinValue">has a minimum value of
-				</label>
-				&nbsp;&nbsp;&nbsp;
-				<input type="number" step="any" name="minValue" style="height:40px;">
-			</div>
+            <div class="span3">
+                <label class="checkbox">
+                    <input type="checkbox" name="hasDictionary">Limit the possible values to
+                </label>
+                &nbsp;&nbsp;&nbsp;
+                <textarea name="dictionary"></textarea>
+            </div>
+        </div>
 
-			<div class="span3">
-				<label class="checkbox">
-					<input type="checkbox" name="hasDictionary">Limit the possible values to
-				</label>
-				&nbsp;&nbsp;&nbsp;
-				<textarea name="dictionary"></textarea>
-			</div>
-		</div>
+        <br>
 
-		<br>
+        <div class="row">
+            <div class="btn-group offset1">
+                <a class="btn preview btn-primary">Preview invalid rows</a>
+                <a class="btn preview-valid btn-primary">Preview valid rows</a>
+            </div>
 
-		<div class="row">
-			<div class="btn-group offset1">
-				<a class="btn preview btn-primary">Preview invalid rows</a>
-				<a class="btn preview-valid btn-primary">Preview valid rows</a>
-			</div>
+            <div class="btn-group">
+                <a class="btn btn-primary save-config">Save</a>
+                <a class="btn btn-primary save-config-new">Save as</a>
+            </div>
 
-			<div class="btn-group">
-				<a class="btn btn-primary save-config">Save</a>
-				<a class="btn btn-primary save-config-new">Save as</a>
-			</div>
+            <div class="btn-group">
+                <a class="btn btn-success download-csv" download="compiled.csv">Download cleaned data as CSV</a>	
+            </div>
 
-			<div class="btn-group">
-				<a class="btn btn-success download-csv" download="compiled.csv">Download cleaned data as CSV</a>	
-			</div>
-			
-		</div>
-	</div>
+        </div>
+    </div>
 </template>
 
 <template name="preview">
-	<legend>
-		<span style="color:red" id="error-count"></span>
-	</legend>
-	<div style="color:red; height:200px; overflow:scroll">
-		<div id="error-box">
-		</div>
-	</div>
-	<div id="preview"></div>
+    <legend>
+        <span style="color:red" id="error-count"></span>
+    </legend>
+    <div style="color:red; height:200px; overflow:scroll">
+        <div id="error-box">
+        </div>
+    </div>
+    <div id="preview"></div>
 </template>
 
 <template name="toolbox">
-	<div id="toolbox" class="">
-		<div class="btn-group">
-			<a class="btn btn-xs btn-primary add" name="field" type="button" data-toggle="tooltip" title="Adds a new reference to a column from the raw data file">Add a Field</a>
+    <div id="toolbox" class="">
+        <div class="btn-group">
+            <a class="btn btn-xs btn-primary add" name="field" type="button" data-toggle="tooltip" title="Adds a new reference to a column from the raw data file">Add a Field</a>
 
-			<a class="btn btn-xs btn-primary add" name="constant" type="button" data-toggle="tooltip" title="Adds a constant value">Add a Constant</a>
-			<a class="btn btn-xs btn-danger delete" type="button" data-toggle="tooltip" title="Delete the last element in the row">Delete</a>
-		</div>
+            <a class="btn btn-xs btn-primary add" name="constant" type="button" data-toggle="tooltip" title="Adds a constant value">Add a Constant</a>
+            <a class="btn btn-xs btn-danger delete" type="button" data-toggle="tooltip" title="Delete the last element in the row">Delete</a>
+        </div>
 
-		<div class="btn-group">
+        <div class="btn-group">
 
-			<a class="dropdown-toggle btn btn-xs btn-primary" id="dLabel" role="button" data-toggle="dropdown" data-target="#">
+            <a class="dropdown-toggle btn btn-xs btn-primary" id="dLabel" role="button" data-toggle="dropdown" data-target="#">
 				Add an Operator
 			</a>
-			<ul class="dropdown-menu">
-				<li>
-					<a class="add" name="condition">
+            <ul class="dropdown-menu">
+                <li>
+                    <a class="add" name="condition">
 						conditions (if/else)
 					</a>
-				</li>
-				<li>
-					<a class="add" name="upper">to uppercase</a>
-				</li>
-				<li>
-					<a class="add" name="contain">contains</a>
-				</li>
-				<li>
-					<a class="add" name="blank">is blank</a>
-				</li>
-				<li>
-					<a class="add" name="average">average value</a>
-				</li>
-				<li>
-					<a class="add" name="replace">replace value</a>
-				</li>
-				<li>
-					<a class="add" name="count">count occurance</a>
-				</li>
-				<li>
-					<a class="add" name="extract">extract numeric values</a>
-				</li>
-			</ul>
-		</div>
+                </li>
+                <li>
+                    <a class="add" name="upper">to uppercase</a>
+                </li>
+                <li>
+                    <a class="add" name="contain">contains</a>
+                </li>
+                <li>
+                    <a class="add" name="blank">is blank</a>
+                </li>
+                <li>
+                    <a class="add" name="average">average value</a>
+                </li>
+                <li>
+                    <a class="add" name="replace">replace value</a>
+                </li>
+                <li>
+                    <a class="add" name="count">count occurance</a>
+                </li>
+                <li>
+                    <a class="add" name="extract">extract numeric values</a>
+                </li>
+                <li>
+                    <a class="add" name="location">to location</a>
+                </li>
+                <li>
+                    <a class="add" name="lat">to Latitude</a>
+                </li>
+                <li>
+                    <a class="add" name="lon">to Lontitude</a>
+                </li>
+                <li>
+                    <a class="add" name="countrycode">Get Country Code</a>
+                </li>
+                <li>
+                    <a class="add" name="country">Country code to Country</a>
+                </li>
+            </ul>
+        </div>
 
-		<div class="btn-group">
-			<a class="btn btn-xs btn-primary add" name="plus" type="button">+</a>
-			<a class="btn btn-xs btn-primary add" name="minus" type="button">-</a>
-			<a class="btn btn-xs btn-primary add" name="divide" type="button">/</a>
-			<a class="btn btn-xs btn-primary add" name="multiply" type="button">x</a>
+        <div class="btn-group">
+            <a class="btn btn-xs btn-primary add" name="plus" type="button">+</a>
+            <a class="btn btn-xs btn-primary add" name="minus" type="button">-</a>
+            <a class="btn btn-xs btn-primary add" name="divide" type="button">/</a>
+            <a class="btn btn-xs btn-primary add" name="multiply" type="button">x</a>
 
-			<a class="btn btn-xs btn-primary add" name="equals" type="button">=</a>
-			<a class="btn btn-xs btn-primary add" name="greater" type="button">></a>
-			<a class="btn btn-xs btn-primary add" name="less" type="button">
-				<</a>
-			</div>
-		</div>
+            <a class="btn btn-xs btn-primary add" name="equals" type="button">=</a>
+            <a class="btn btn-xs btn-primary add" name="greater" type="button">></a>
+            <a class="btn btn-xs btn-primary add" name="less" type="button">
+                <</a>
+        </div>
+        <input id="source-date-format" type="text" style="height: 32px;margin-bottom: 0;width: 150px;" placeholder="source date format"></input>
+        <input id="desired-date-format" type="text" style="height: 32px;margin-bottom: 0;width: 150px;" placeholder="target date format"></input>
+    </div>
 
-		<div class="btn-group">
-			<input id="source-date-format" type="text"></input>
-		</div>
-		<div class="btn-group">
-			<input id="desired-date-format" type="text"></input>
-		</div>
-	</template>
+</template>
