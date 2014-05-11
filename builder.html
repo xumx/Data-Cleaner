@@ -1,6 +1,18 @@
+<head>
+<script>
+    var TogetherJSConfig_siteName = "Data Robot";
+    var TogetherJSConfig_toolName = "Robot Sync";
+    var TogetherJSConfig_cloneClicks = true;
+    var TogetherJSConfig_enableShortcut = true;
+    var TogetherJSConfig_findRoom = "DataRobot";
+    var TogetherJSConfig_suppressJoinConfirmation = true;
+</script>
+    <script src="https://togetherjs.com/togetherjs-min.js"></script>
+</head>
 <body>
     <div class="container">
-        <div class="pull-right" style="margin:10px;">{{loginButtons align="right"}}</div>
+        <div class="pull-right" style="margin:10px;">
+        <button class="btn btn-primary" onclick="TogetherJS(this); return false;">Collaborate</button></div>
 
 
         <div class="well">
@@ -25,7 +37,7 @@
 <template name="section1">
     <section id="section1">
         <h1>Step 1: Select raw CSV Data File
-            <small>({{selectedDataFile}})</span>
+            <small>({{selectedDataFile}})</small>
         </h1>
 
         <table class="table table-bordered" style="width:75%;background:white;font-size:1.2em;">
@@ -83,7 +95,7 @@
                     <div class="btn-group">
                         <button class="btn btn-xs btn-primary use-schema" style="width:80px;">use</button>
                         <button class="btn btn-xs btn-danger delete-schema" style="width:80px;">delete</button>
-                        <a class="btn btn-xs download-schema" download="schema.csv" style="width:80px;">download</a>
+                        <a class="btn btn-xs download-schema" download="schema.json" style="width:80px;">download</a>
                     </div>
                 </td>
             </tr>
@@ -103,6 +115,14 @@
                     <input type="file" id="sample" name="file" />
                 </td>
             </tr>
+            <tr>
+                <td>
+                    Create a new schema
+                </td>
+                <td>
+                    <a class="btn new-schema btn-xs btn-success">New Schema</a>
+                </td>
+            </tr>
         </table>
     </section>
     <hr>
@@ -112,16 +132,17 @@
     <section id="section3">
         <h1>Step 3: Define field mappings</h1>
 
-        <div id="paging" style="width:100%;"></div>
+        <div style="text-align: center;">
+            <ul id="paging" style="width:100%;"></ul>
+
+            <div class="btn-group">
+                <div class="btn btn-xs btn-primary add-column">Insert a new column</div>
+                <div class="btn btn-xs btn-primary edit-column">Edit column header</div>
+                <div class="btn btn-xs btn-danger delete-column">Delete column field</div>
+            </div>
+        </div>
+
         {{> mapping}}
-
-
-        <!-- <div class="row">
-			<div id="list" class="span3">
-				{{metadata}}	
-			</div>
-		</div>
-	-->
     </section>
 </template>
 
@@ -141,7 +162,7 @@
 
         <br>
 
-        <legend class="muted">Validation Rules</legend>
+        <legend class="muted collapse-validation">Validation Rules</legend>
         <div id="validation" class="container">
             <div class="span3">
                 <label class="checkbox">
@@ -163,12 +184,6 @@
             </div>
 
             <div class="span3">
-                <label class="radio-inline">
-                    <input type="radio" name="type" value="date">date
-                </label>
-                <label class="radio-inline">
-                    <input type="radio" name="type" value="location">location
-                </label>
                 <label class="checkbox">
                     <input type="checkbox" name="hasMaxValue">has a maximum value of
                 </label>
@@ -184,10 +199,18 @@
 
             <div class="span3">
                 <label class="checkbox">
-                    <input type="checkbox" name="hasDictionary">Limit the possible values to
+                    <input type="checkbox" name="hasDictionary">Whitelist
                 </label>
                 &nbsp;&nbsp;&nbsp;
                 <textarea name="dictionary"></textarea>
+            </div>
+
+            <div class="span3">
+                <label class="checkbox">
+                    <input type="checkbox" name="hasExcludeDictionary">Blacklist
+                </label>
+                &nbsp;&nbsp;&nbsp;
+                <textarea name="excludeDictionary"></textarea>
             </div>
         </div>
 
@@ -205,22 +228,32 @@
             </div>
 
             <div class="btn-group">
-                <a class="btn btn-success download-csv" download="compiled.csv">Download cleaned data as CSV</a>	
+                <a class="btn process-all btn-primary">Clean all rows</a>
             </div>
-
         </div>
     </div>
 </template>
 
 <template name="preview">
+    {{#constant}}
+
     <legend>
         <span style="color:red" id="error-count"></span>
     </legend>
-    <div style="color:red; height:200px; overflow:scroll">
+    <div style="color:red; max-height:200px; overflow-y:scroll">
         <div id="error-box">
         </div>
     </div>
     <div id="preview"></div>
+    {{/constant}}
+    <br>
+
+    <div>
+        {{#if firstPage}}
+        <a class="prev btn">Previous 25 rows</a>
+        {{/if}}
+        <a class="next btn pull-right">Next 25 rows</a>
+    </div>
 </template>
 
 <template name="toolbox">
@@ -235,49 +268,85 @@
         <div class="btn-group">
 
             <a class="dropdown-toggle btn btn-xs btn-primary" id="dLabel" role="button" data-toggle="dropdown" data-target="#">
-				Add an Operator
-			</a>
+                Add an Operator
+            </a>
             <ul class="dropdown-menu">
+
+                <li class="dropdown-submenu">
+                    <a href="#">Text</a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="add" data-toggle="tooltip" title="first tooltip" name="upper">convert to uppercase</a>
+                        </li>
+                        <li>
+                            <a class="add" name="contain">contains</a>
+                        </li>
+                        <li>
+                            <a class="add" name="replace">replace value</a>
+                        </li>
+                        <li>
+                            <a class="add" name="count">count occurance</a>
+                        </li>
+                        <li>
+                            <a class="add" name="extract">extract numeric values</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="dropdown-submenu">
+                    <a href="#">Locations</a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="add" name="location">to location</a>
+                        </li>
+                        <li>
+                            <a class="add" name="cityname">get City Name</a>
+                        </li>
+                        <li>
+                            <a class="add" name="lat">get latitude</a>
+                        </li>
+                        <li>
+                            <a class="add" name="lon">get lontitude</a>
+                        </li>
+                        <li>
+                            <a class="add" name="countrycode">get country code</a>
+                        </li>
+                        <li>
+                            <a class="add" name="country">from country code to country</a>
+                        </li>
+                    </ul>
+                </li>
+
+                <li class="dropdown-submenu">
+                    <a href="#">Dates</a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="add" name="day">days (unit)</a>
+                        </li>
+                        <li>
+                            <a class="add" name="week">weeks (unit)</a>
+                        </li>
+                    </ul>
+                </li>
+                <li class="dropdown-submenu">
+                    <a href="#">Numbers</a>
+                    <ul class="dropdown-menu">
+                        <li>
+                            <a class="add" name="average">average value</a>
+                        </li>
+                        <li>
+                            <a class="add" name="rownumber">row number</a>
+                        </li>
+                    </ul>
+                </li>
+
+
                 <li>
                     <a class="add" name="condition">
-						conditions (if/else)
-					</a>
-                </li>
-                <li>
-                    <a class="add" name="upper">to uppercase</a>
-                </li>
-                <li>
-                    <a class="add" name="contain">contains</a>
+                        conditions (if/else)
+                    </a>
                 </li>
                 <li>
                     <a class="add" name="blank">is blank</a>
-                </li>
-                <li>
-                    <a class="add" name="average">average value</a>
-                </li>
-                <li>
-                    <a class="add" name="replace">replace value</a>
-                </li>
-                <li>
-                    <a class="add" name="count">count occurance</a>
-                </li>
-                <li>
-                    <a class="add" name="extract">extract numeric values</a>
-                </li>
-                <li>
-                    <a class="add" name="location">to location</a>
-                </li>
-                <li>
-                    <a class="add" name="lat">to Latitude</a>
-                </li>
-                <li>
-                    <a class="add" name="lon">to Lontitude</a>
-                </li>
-                <li>
-                    <a class="add" name="countrycode">Get Country Code</a>
-                </li>
-                <li>
-                    <a class="add" name="country">Country code to Country</a>
                 </li>
             </ul>
         </div>
@@ -289,12 +358,11 @@
             <a class="btn btn-xs btn-primary add" name="multiply" type="button">x</a>
 
             <a class="btn btn-xs btn-primary add" name="equals" type="button">=</a>
-            <a class="btn btn-xs btn-primary add" name="greater" type="button">></a>
-            <a class="btn btn-xs btn-primary add" name="less" type="button">
-                <</a>
+            <a class="btn btn-xs btn-primary add" name="greater" type="button">&gt;</a>
+            <a class="btn btn-xs btn-primary add" name="less" type="button">&lt;</a>
         </div>
-        <input id="source-date-format" type="text" style="height: 32px;margin-bottom: 0;width: 150px;" placeholder="source date format"></input>
-        <input id="desired-date-format" type="text" style="height: 32px;margin-bottom: 0;width: 150px;" placeholder="target date format"></input>
+        <input id="source-date-format" type="text" style="height: 32px;margin-bottom: 0;width: 150px;" placeholder="source date format">
+        <input id="target-date-format" type="text" style="height: 32px;margin-bottom: 0;width: 150px;" placeholder="target date format">
     </div>
 
 </template>

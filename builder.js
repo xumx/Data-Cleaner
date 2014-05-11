@@ -1,321 +1,83 @@
-//TODO
-//Multiple Date format
-//Lat Lng Country Transformer
-//Road Bridge
+//Row number
+//Fixed complete %
+//Blacklist/whitelist
+
+// Location bug fix
+// Road Bridge
+
+debug = null;
 
 Schemas = new Meteor.Collection('schema');
 Datafiles = new CollectionFS('datafile');
-Cities = new Meteor.Collection('cities');
 
-Countries = new Meteor.Collection('countries');
+Cities = new Meteor.Collection('cities');
+Status = new Meteor.Collection('status');
 
 var _DATE_REGEXP = '^(19|20)\\d\\d([- /.])(0[1-9]|1[012])\\2(0[1-9]|[12][0-9]|3[01])$';
 var DATE_FORMAT = 'YYYY-MM-DD';
 
-
-Core = {
-    prepareData: function(raw, schema, callback) {
-        var result = {
-            valid: [],
-            invalid: [],
-            errors: []
-        }
-
-        _.each(raw, function(row, rindex) {
-            var isValid = true;
-            var computedRow = [];
-
-            _.each(schema, function(col, cindex) {
-                var value = Core.compute(col.statement, row, computedRow);
-
-                if (value !== null && value._isAMomentObject) {
-                    value = value.format(col.validation.date || DATE_FORMAT);
-                }
-
-                Core.validate(value, col.validation, function(error) {
-
-                    if (error) {
-                        isValid = false;
-                        result.errors.push(error);
-                    }
-
-                    computedRow.push(value);
-                }, rindex);
-            });
-
-            if (isValid) {
-                result.valid.push(computedRow);
-            } else {
-                result.invalid.push(computedRow);
-            }
+var JSONfn = {
+    stringify: function(obj) {
+        return JSON.stringify(obj, function(key, value) {
+            return (typeof value === 'function') ? value.toString() : value;
         });
-
-        return result;
     },
 
-    compute: function(originalStatement, data, computedRow) {
-        if (originalStatement == null) return '';
-
-        var statement = $.extend(true, [], originalStatement);
-
-        var holder = null;
-        var operator = null;
-        var element = null;
-
-        var _lookup = function(value) {
-            return value;
-        }
-
-        var lookup = _lookup;
-
-        var cond, result, value;
-
-        //Process all elements
-        while (statement.length > 0) {
-            // reverse stack
-            element = statement.shift();
-
-            if (element.type == 'condition') {
-                cond = Core.compute(element['if'], data, computedRow);
-
-                if (typeof cond == 'boolean') {
-                    if (cond) {
-                        result = Core.compute(element['then'], data, computedRow);
-                        return result;
-                    } else {
-                        result = Core.compute(element['else'], data, computedRow);
-                        return result;
-                    }
-                } else {
-
-                    console.error('Invalid if condition');
-
-                }
-
-            } else if (element.type == 'nest') {
-                result = Core.compute(element.child, data, computedRow);
-
-                if (holder == null && operator == null) {
-                    holder = result;
-                } else if (holder != null && operator != null) {
-                    holder = operator(holder, result);
-                    operator = null;
-                } else {
-                    console.error('invalid statement');
-                }
-
-            } else if (element.type == 'field') {
-                // try to parse data
-
-                if (element.circular) {
-                    //Try to prevent circulars
-                    value = computedRow[element.col];
-                } else {
-                    value = data[element.col];
-                }
-
-
-                if (typeof value == 'string') {
-                    value = value.trim();
-
-
-                    if (utility.isNumber(value)) {
-                        value = parseFloat(value);
-                    } else if (moment(value, DATE_FORMAT, true).isValid()) {
-                        value = moment(value, DATE_FORMAT);
-                    }
-                }
-
-                if (holder == null) {
-                    if (operator == null) {
-                        holder = lookup(value, element.col);
-                        lookup = _lookup;
-                    } else {
-                        console.error('invalid statement');
-                    }
-                } else {
-                    if (operator != null) {
-                        holder = operator(holder, lookup(value, element.col));
-                        lookup = _lookup;
-                        operator = null;
-                    } else {
-                        console.error('invalid statement');
-                    }
-                }
-
-            } else if (element.type == 'constant') {
-                if (typeof element.value == 'string' && utility.isNumber(element.value)) {
-                    element.value = parseFloat(element.value);
-                }
-
-                if (holder == null && operator == null) {
-                    holder = element.value
-                } else if (holder != null && operator != null) {
-                    holder = operator(holder, element.value);
-                    operator = null;
-                } else {
-                    console.error('invalid statement');
-                }
-
-            } else if (element.type == 'operator') {
-                if (holder == null) {
-                    console.error('invalid statement', 'missing holder element');
-                } else if (operator != null) {
-                    console.error('invalid statement', 'consecutive operator');
-                } else {
-                    operator = element.fn;
-                }
-
-            } else if (element.type == 'transform') {
-                if (holder == null) {
-                    console.error('invalid statement', 'missing holder element');
-                } else if (operator != null) {
-                    console.error('invalid statement', 'consecutive operator');
-                } else {
-                    holder = element.fn(holder);
-                }
-            } else if (element.type == 'lookup') {
-                lookup = element.fn;
-            }
-        }
-
-        //No more elements
-        return holder;
-    },
-
-    validate: function(data, validation, callback, rindex) {
-        var isBlank;
-
-        if (data == '' || data == undefined || data == null) {
-            isBlank = true;
-        }
-
-        if (validation.allowBlank === false && isBlank) {
-            callback('Blank cell found at row ' + rindex);
-        } else if (validation.allowBlank === true && isBlank) {
-            callback();
-        } else if (validation.fixedLength != null && data.length != validation.fixedLength) {
-            callback('Value Length Violation at row ' + rindex);
-        } else if (validation.pattern != null && typeof data == 'string' && !data.match(new RegExp(validation.pattern))) {
-            callback('Data Pattern Violation at row ' + rindex);
-        } else if (validation.type != null) {
-            callback();
-            //Is Date
-            // if (validation.type == 'number') {
-            // 	if (typeof data == 'number') {
-            // 		callback();	
-            // 	} else {
-            // 		callback('Data type mismatch - Expects number but receives ' + typeof data);
-            // 	}
-            // }
-
-            // if (validation.type == 'string') {
-            // 	callback();
-            // }
-
-            // if (validation.type == 'date' && typeof data == 'string' && data.match(new RegExp(_DATE_REGEXP))) {
-            // 	callback();
-            // } else {
-            // 	callback('Data type mismatch');	
-            // }
-        } else if (validation.date != null && !moment(validation.date, data).isValid()) {
-            callback();
-        } else if (validation.maxValue != null && parseFloat(data) > validation.maxValue) {
-            callback('Data Range Violation at row ' + rindex);
-        } else if (validation.minValue != null && parseFloat(data) < validation.minValue) {
-            callback('Data Range Violation at row ' + rindex);
-        } else if (validation.dictionary != null && !_.contains(validation.dictionary, data)) {
-            callback('Dictionary Violation at row ' + rindex);
-        } else {
-            callback();
-        }
-    },
-
-    findLocation: function(string, type) {
-        var result = Cities.findOne({
-            ascii: string
-        }, {
-            sort: {
-                population: -1
-            }
+    parse: function(str) {
+        return JSON.parse(str, function(key, value) {
+            if (typeof value != 'string') return value;
+            return (value.substring(0, 8) == 'function') ? eval('(' + value + ')') : value;
         });
-
-        if (result) return [result.lat, result.lon];
-
-        result = Cities.findOne({
-            alt: {
-                $regex: new RegExp(string, "i")
-            }
-        }, {
-            sort: {
-                population: -1
-            }
-        });
-
-        if (result) {
-
-            switch (type) {
-                case 'lon':
-                    return result.lon;
-                case 'lat':
-                    return result.lat;
-                case 'country':
-                    return result.country;
-                default:
-                    return [result.lat, result.lon];
-            }
-
-        } else {
-            Meteor.call('resolveLocation', string);
-            return 'fetching';
-        }
     }
-}
+};
 
 if (Meteor.isClient) {
-    var JSONfn;
-    if (!JSONfn) {
-        JSONfn = {};
-    }
 
-    (function() {
-        JSONfn.stringify = function(obj) {
-            return JSON.stringify(obj, function(key, value) {
-                return (typeof value === 'function') ? value.toString() : value;
-            });
-        }
-
-        JSONfn.parse = function(str) {
-            return JSON.parse(str, function(key, value) {
-                if (typeof value != 'string') return value;
-                return (value.substring(0, 8) == 'function') ? eval('(' + value + ')') : value;
-            });
-        }
-    }());
-
-    var rawHeader, goal, dataSummary, current, csvData, valid_table, invalid_table, cursor,
+    var rawHeader, goal, current, csvData, preview_table, cursor,
         sessionKey = _.random(100, 999);
+
+    Meteor.subscribe('data');
 
     Operators = {
         plus: {
             type: 'operator',
             text: '+',
             fn: function(a, b) {
-                if (a._isAMomentObject && utility.isNumber(b)) {
-                    return a.add('days', b);
+                if (a._isAMomentObject && b.unit && Server.isNumber(b.value)) {
+                    return a.add(b.unit, b.value);
                 } else {
                     return a + b;
                 }
+            }
+        },
+        day: {
+            type: 'unit',
+            text: 'days',
+            fn: function(a) {
+                return {
+                    value: a,
+                    unit: "days"
+                };
+            }
+        },
+        week: {
+            type: 'unit',
+            text: 'week',
+            fn: function(a) {
+                return {
+                    value: a,
+                    unit: "weeks"
+                };
             }
         },
         minus: {
             type: 'operator',
             text: '-',
             fn: function(a, b) {
-                if (a._isAMomentObject && utility.isNumber(b)) {
-                    return a.subtract('days', b);
+                if (a._isAMomentObject && b.unit && Server.isNumber(b.value)) {
+                    return a.subtract(b.unit, b.value);
                 } else {
-                    return a - b;
+                    return a + b;
                 }
             }
         },
@@ -375,41 +137,52 @@ if (Meteor.isClient) {
                 return a.toUpperCase();
             }
         },
+
+        cityname: {
+            type: 'transform',
+            text: '\'s city name',
+            fn: function(a) {
+                return Meteor.call('findLocation', a, 'name');
+            }
+        },
+        rownumber: {
+            type: 'field',
+            subtype: 'rindex',
+            text: 'row number'
+        },
         location: {
             type: 'transform',
             text: 'to location',
             fn: function(a) {
-                return Core.findLocation(a, 'location');
+                return Meteor.call('findLocation', a);
             }
         },
         countrycode: {
             type: 'transform',
-            text: '\s country code',
+            text: '\'s country code',
             fn: function(a) {
-                return Core.findLocation(a, 'country');
+                return Meteor.call('findLocation', a, 'country');
             }
         },
         lat: {
             type: 'transform',
             text: '\'s lat',
             fn: function(a) {
-                return Core.findLocation(a, 'lat');
+                return Meteor.call('findLocation', a, 'lat');
             }
         },
         lon: {
             type: 'transform',
             text: '\'s lon',
             fn: function(a) {
-                return Core.findLocation(a, 'lon');
+                return Meteor.call('findLocation', a, 'lon');
             }
         },
         country: {
             type: 'transform',
-            text: '\'s lon',
+            text: 'to country',
             fn: function(a) {
-                return Countries.findOne({
-                    'countryCode': a
-                }).name;
+                return Server.codeToCountry[a];
             }
         },
         blank: {
@@ -418,10 +191,10 @@ if (Meteor.isClient) {
             fn: function(a) {
                 var isBlank = false;
 
-                isBlank = isBlank || a == undefined || a == null;
+                isBlank = isBlank || a === undefined || a === null;
 
                 if (typeof a == 'string') {
-                    isBlank = isBlank || a.match(/^\s*$/) != null;
+                    isBlank = isBlank || a.match(/^\s*$/).length > 0;
                 }
 
                 return isBlank;
@@ -441,8 +214,8 @@ if (Meteor.isClient) {
         average: [{
             type: 'lookup',
             text: 'average value of',
-            fn: function(value, column) {
-                return dataSummary.average[column];
+            fn: function(value, column, summary) {
+                return summary.average[column];
             }
         }, {
             type: 'field'
@@ -450,8 +223,8 @@ if (Meteor.isClient) {
         total: {
             type: 'lookup',
             text: '\'s total value',
-            fn: function(value, column) {
-                return dataSummary.sum[column];
+            fn: function(value, column, summary) {
+                return summary.sum[column];
             }
         },
         extract: [{
@@ -486,11 +259,11 @@ if (Meteor.isClient) {
             type: 'operator',
             text: '\'s number of occurance in',
             fn: function(a, b) {
-                var match = b.match(a);
+                var match = b.match(new RegExp(a, "g"));
                 if (match) {
                     return match.length;
                 } else {
-                    return ''
+                    return 0;
                 }
             }
         }, {
@@ -528,17 +301,19 @@ if (Meteor.isClient) {
                 'else': []
             };
         }
-    }
+    };
 
-    var utility = {
+    Client = {
         isNumber: function(n) {
             return !isNaN(parseFloat(n)) && isFinite(n);
         },
+
         goto: function(number) {
             $('html,body').animate({
                 scrollTop: $('#section' + number).position().top
             }, 500);
         },
+
         add: function(key) {
             var op = Operators[key];
 
@@ -549,77 +324,34 @@ if (Meteor.isClient) {
             } else if (typeof op == 'function') {
                 cursor.push(op());
             } else {
-                cursor.push(_.clone(op))
+                cursor.push(_.clone(op));
             }
 
-            utility.render();
+            Client.modified = true;
+            Client.render();
         },
-        // get: function(id, statement) {
-
-        // 	for (var i = 0; i < statement.length; i++) {
-        // 		if (statement[i].id == id) {
-        // 			return statement[i];
-        // 		} else if (statement[i].type == 'condition') {
-        // 			return utility.get(id, statement[i]['if']) || utility.get(id, statement[i]['then']) || utility.get(id, statement[i]['else']);
-        // 		}
-        // 	}
-
-        // 	return false;
-        // },
 
         processCSV: function(csv) {
             //Convert data into 2D array
             csvData = $.csv2Array(csv);
             rawHeader = csvData.shift();
 
-            dataSummary = {
-                average: [],
-                count: [],
-                sum: []
-            }
-
-            _.each(rawHeader, function(row, index) {
-                dataSummary.count[index] = 0;
-                dataSummary.sum[index] = 0;
-            });
-
-            dataSummary = _.reduce(csvData, function(memo, row) {
-                _.each(row, function(cell, index) {
-
-                    if (utility.isNumber(cell)) {
-                        memo.count[index]++;
-                        memo.sum[index] += parseFloat(cell);
-                    }
-
-                });
-
-                return memo;
-            }, dataSummary);
-
-            _.each(dataSummary.count, function(value, index) {
-                if (value > 0) {
-                    dataSummary.average[index] = dataSummary.sum[index] / value;
-                }
-            });
-
-            console.log(dataSummary);
-
             _.defer(function() {
-                _.each(rawHeader, function(row, index) {
+                _.each(rawHeader.reverse(), function(row, index) {
                     var tag = $('<div class="badge badge-info">' + row + '</div>').on('click', function() {
                         cursor.push({
                             type: 'field',
                             text: row,
-                            col: index,
+                            col: rawHeader.length - index - 1,
                             id: _.uniqueId('F' + sessionKey + '_')
                         });
-
-                        utility.render();
+                        Client.modified = true;
+                        Client.render();
                     });
 
-                    $('#tagcloud').append(tag);
+                    $('#tagcloud').prepend(tag);
                 });
-            })
+            });
         },
 
         render: function() {
@@ -627,71 +359,81 @@ if (Meteor.isClient) {
             $('.goal').text(current.header).click(function() {
                 cursor = current.statement;
             });
-            $('.map').append($(utility.statementToHTML(current.statement)));
+            $('.map').append($(Client.statementToHTML(current.statement)));
 
             //Binding
             var val = $('#validation');
 
             if (current.validation.allowBlank) {
-                val.find('[name=allowBlank]').attr('checked', true);
+                val.find('[name=allowBlank]').prop('checked', true);
             } else {
-                val.find('[name=allowBlank]').attr('checked', false);
+                val.find('[name=allowBlank]').prop('checked', false);
             }
 
             if (current.validation.type != null) {
-                val.find('[name=type][value=' + current.validation.type + ']').attr('checked', true);
+                val.find('[name=type][value=' + current.validation.type + ']').prop('checked', true);
             } else {
-                val.find('[name=type]').attr('checked', false);
+                val.find('[name=type]').prop('checked', false);
             }
 
-            if (current.validation.date != null) {
-                //TODO
-            } else {
-                //TODO
+            if (current.validation.targetDateFormat != null) {
+                $('#target-date-format').val(current.validation.targetDateFormat);
+            }
+
+            if (current.validation.sourceDateFormat != null) {
+                $('#source-date-format').val(current.validation.sourceDateFormat);
             }
 
             if (current.validation.fixedLength != null) {
-                val.find('[name=hasFixedLength]').attr('checked', true);
+                val.find('[name=hasFixedLength]').prop('checked', true);
                 val.find('[name=fixedLength]').val(current.validation.fixedLength).show();
             } else {
-                val.find('[name=hasFixedLength]').attr('checked', false);
+                val.find('[name=hasFixedLength]').prop('checked', false);
                 val.find('[name=fixedLength]').val(null).hide();
             }
 
 
             if (current.validation.maxValue != null) {
-                val.find('[name=hasMaxValue]').attr('checked', true);
+                val.find('[name=hasMaxValue]').prop('checked', true);
                 val.find('[name=maxValue]').val(current.validation.maxValue).show();
             } else {
-                val.find('[name=hasMaxValue]').attr('checked', false);
+                val.find('[name=hasMaxValue]').prop('checked', false);
                 val.find('[name=maxValue]').val(null).hide();
             }
 
 
             if (current.validation.minValue != null) {
-                val.find('[name=hasMinValue]').attr('checked', true);
+                val.find('[name=hasMinValue]').prop('checked', true);
                 val.find('[name=minValue]').val(current.validation.minValue).show();
             } else {
-                val.find('[name=hasMinValue]').attr('checked', false);
+                val.find('[name=hasMinValue]').prop('checked', false);
                 val.find('[name=minValue]').val(current.validation.minValue).hide();
             }
 
 
             if (current.validation.pattern != null) {
-                val.find('[name=hasPattern]').attr('checked', true);
+                val.find('[name=hasPattern]').prop('checked', true);
                 val.find('[name=pattern]').val(current.validation.pattern).show();
             } else {
-                val.find('[name=hasPattern]').attr('checked', false);
+                val.find('[name=hasPattern]').prop('checked', false);
                 val.find('[name=pattern]').val(null).hide();
             }
 
 
             if (current.validation.dictionary != null) {
-                val.find('[name=hasDictionary]').attr('checked', true);
+                val.find('[name=hasDictionary]').prop('checked', true);
                 val.find('[name=dictionary]').val(current.validation.dictionary.join('\n')).show();
             } else {
-                val.find('[name=hasDictionary]').attr('checked', false);
+                val.find('[name=hasDictionary]').prop('checked', false);
                 val.find('[name=dictionary]').val('').hide();
+            }
+
+            if (current.validation.excludeDictionary != null) {
+                val.find('[name=hasExcludeDictionary]').prop('checked', true);
+                val.find('[name=excludeDictionary]').val(current.validation.excludeDictionary.join('\n')).show();
+            } else {
+                val.find('[name=hasExcludeDictionary]').prop('checked', false);
+                val.find('[name=excludeDictionary]').val('').hide();
             }
 
 
@@ -706,7 +448,10 @@ if (Meteor.isClient) {
                 var size = ($(item).val().length > 25) ? 25 : $(item).val().length;
                 $(item).attr('size', size);
             });
+
+            TogetherJS.reinitialize();
         },
+
         saveGoal: function(goal) {
             var schema = prompt('Schema Name');
 
@@ -719,82 +464,126 @@ if (Meteor.isClient) {
                 });
             }
         },
-        prepareGoal: function(goal) {
-            current = goal[0];
-            cursor = current.statement;
 
+        updateGoal: function(goal) {
             var pagingOptions = {
-                currentPage: 1,
-                totalPages: goal.length,
-                numberOfPages: 10,
-                size: 'large',
+                bootstrapMajorVersion: 3,
                 alignment: 'center',
+                size: 'medium',
+                totalPages: goal.length,
+                numberOfPages: 8,
+
+                itemTexts: function(type, page, current) {
+                    switch (type) {
+                        case "first":
+                            return "<<";
+                        case "prev":
+                            return "<";
+                        case "next":
+                            return ">";
+                        case "last":
+                            return ">>";
+                        case "page":
+                            return goal[page - 1].header;
+                    }
+                },
+
                 onPageClicked: function(e, originalEvent, type, page) {
                     var index = page - 1;
                     current = goal[index];
                     cursor = current.statement;
-                    utility.render();
+                    Client.render();
+
+                    console.log(originalEvent.target);
+
+                    originalEvent.target.dispatchEvent(originalEvent);
+                    $('#source-date-format').val(current.validation.sourceDateFormat);
+                    $('#target-date-format').val(current.validation.targetDateFormat);
                 }
-            }
+            };
 
             $('#paging').bootstrapPaginator(pagingOptions);
 
             var colSettings = _.map(goal, function(g) {
                 var validator = function(value, callback) {
-                    Core.validate(value, g.validation, function(error) {
-                        if (error) {
-                            callback(false);
-                        } else {
-                            callback(true);
-                        }
-                    })
-                }
+                    var validation = g.validation;
+                    var isBlank;
+
+                    if (value === '' || value === undefined || value === null) {
+                        isBlank = true;
+                    }
+
+                    if (validation.allowBlank === false && isBlank) {
+                        callback(false);
+                    } else if (validation.allowBlank === true && isBlank) {
+                        callback(true);
+                    } else if (validation.fixedLength !== null && value.length != validation.fixedLength) {
+                        callback(false);
+                    } else if (validation.pattern !== null && typeof value == 'string' && !value.match(new RegExp(validation.pattern))) {
+                        callback(false);
+                    } else if (validation.type !== null) {
+                        //TODO
+                        callback(true);
+                    } else if (validation.targetDateFormat !== null && !moment(validation.targetDateFormat, value).isValid()) {
+                        callback(true);
+                    } else if (validation.maxValue !== null && parseFloat(value) > validation.maxValue) {
+                        callback(false);
+                    } else if (validation.minValue !== null && parseFloat(value) < validation.minValue) {
+                        callback(false);
+                    } else if (validation.dictionary !== null && !_.contains(validation.dictionary, value)) {
+                        callback(false);
+                    } else if (validation.excludeDictionary != null && _.contains(validation.excludeDictionary, value)) {
+                        callback(false);
+                    } else {
+                        callback(true);
+                    }
+                };
 
                 return {
                     validator: validator,
                     allowInvalid: true
-                }
+                };
             });
 
             var headers = _.pluck(goal, 'header');
 
-            invalid_table.updateSettings({
-                colHeaders: headers,
-                columns: colSettings
+            $('.orange-badge').remove();
+            _.each(headers, function(row, index) {
+                var tag = $('<div class="badge orange-badge">' + row + '</div>').on('click', function() {
+                    cursor.push({
+                        type: 'field',
+                        subtype: 'circular',
+                        text: row,
+                        col: index
+                    });
+                    Client.modified = true;
+                    Client.render();
+                });
+
+                $('#tagcloud').append(tag);
             });
 
             _.defer(function() {
-                _.each(headers, function(row, index) {
-                    var tag = $('<div class="badge" style="background-color:orange;">' + row + '</div>').on('click', function() {
-                        cursor.push({
-                            type: 'field',
-                            text: row,
-                            col: index,
-                            circular: true
-                        });
-
-                        utility.render();
-                    });
-
-                    $('#tagcloud').append(tag);
+                preview_table.updateSettings({
+                    colHeaders: headers,
+                    columns: colSettings
                 });
-            })
+            });
         },
-
         //Convert to DOM creation instead of string concat //TODO
         statementToHTML: function(statement) {
-            if (statement == null) {
+            if (statement === null) {
                 console.error('blank statement');
             }
 
-            var container = $('<span>')
+            var container = $('<span>');
             var dom;
 
             var handler = function(s) {
                 return function() {
                     cursor = s;
-                }
-            }
+                };
+            };
 
             var blurHandler = function(element) {
                 return function(e) {
@@ -804,7 +593,7 @@ if (Meteor.isClient) {
 
                         element.text = value;
 
-                        if (_.contains(rawHeader, value) || element.circular) {
+                        if (_.contains(rawHeader, value) || element.subtype === 'circular') {
 
                             element.col = _.indexOf(rawHeader, value);
                             $(e.target).removeClass('alizarin');
@@ -822,9 +611,9 @@ if (Meteor.isClient) {
 
                     }
 
-                    utility.resizeInput(e)
-                }
-            }
+                    Client.resizeInput(e);
+                };
+            };
 
             //Process all elements
             for (var i = 0; i < statement.length; i++) {
@@ -843,31 +632,34 @@ if (Meteor.isClient) {
 
                     $('<div class="nested">')
                         .append(ifLabel)
-                        .append(utility.statementToHTML(_if))
+                        .append(Client.statementToHTML(_if))
                         .append('<br>')
                         .append(thenLabel)
-                        .append(utility.statementToHTML(then))
+                        .append(Client.statementToHTML(then))
                         .append('<br>')
                         .append(elseLabel)
-                        .append(utility.statementToHTML(_else))
+                        .append(Client.statementToHTML(_else))
                         .appendTo(container);
 
                 } else if (element.type == 'nest') {
 
                 } else if (element.type == 'field') {
 
-
-                    // Border Color
-                    if (element.text === undefined) {
-                        dom = $('<input type="text" class="map-input alizarin" value="" autofocus autocomplete="off">')
-                    } else if (_.contains(rawHeader, element.text)) {
-                        dom = $('<input type="text" class="map-input emerald" value="' + element.text + '" autocomplete="off">');
+                    if (element.subtype === 'rownumber') {
+                        container.append('<span class="alizarin"> ' + element.text + '&nbsp;</span>');
                     } else {
-                        dom = $('<input type="text" class="map-input alizarin" value="' + element.text + '" autocomplete="off">');
-                    }
+                        // Border Color
+                        if (element.text === undefined) {
+                            dom = $('<input type="text" class="map-input alizarin" value="" autofocus autocomplete="off">');
+                        } else if (_.contains(rawHeader, element.text)) {
+                            dom = $('<input type="text" class="map-input emerald" value="' + element.text + '" autocomplete="off">');
+                        } else {
+                            dom = $('<input type="text" class="map-input alizarin" value="' + element.text + '" autocomplete="off">');
+                        }
 
-                    dom.blur(blurHandler(element));
-                    container.append(dom);
+                        dom.blur(blurHandler(element));
+                        container.append(dom);
+                    }
 
                 } else if (element.type == 'constant') {
                     if (element.value === undefined) {
@@ -879,7 +671,7 @@ if (Meteor.isClient) {
                     dom.blur(blurHandler(element));
                     container.append(dom);
 
-                } else if (element.type == 'operator' || element.type == 'lookup' || element.type == 'transform') {
+                } else if (element.type == 'operator' || element.type == 'unit' || element.type == 'lookup' || element.type == 'transform') {
                     container.append('<span class="alizarin"> ' + element.text + '&nbsp;</span>');
                 }
             }
@@ -927,30 +719,16 @@ if (Meteor.isClient) {
                 // Great success! All the File APIs are supported.
                 return true;
             } else {
-                // source: File API availability - http://caniuse.com/#feat=fileapi
-                // source: <output> availability - http://html5doctor.com/the-output-element/
-                document.writeln('The HTML5 APIs used in this form are only available in the following browsers:<br />');
-                // 6.0 File API & 13.0 <output>
-                document.writeln(' - Google Chrome: 13.0 or later<br />');
-                // 3.6 File API & 6.0 <output>
-                document.writeln(' - Mozilla Firefox: 6.0 or later<br />');
-                // 10.0 File API & 10.0 <output>
-                document.writeln(' - Internet Explorer: Not supported (partial support expected in 10.0)<br />');
-                // ? File API & 5.1 <output>
-                document.writeln(' - Safari: Not supported<br />');
-                // ? File API & 9.2 <output>
-                document.writeln(' - Opera: Not supported');
                 return false;
             }
         }
-    }
-
+    };
 
     Template.section0.events = {
         'click .goto1': function() {
-            utility.goto(1);
+            Client.goto(1);
         }
-    }
+    };
 
     Template.section1.files = function() {
         return Datafiles.find({
@@ -960,12 +738,12 @@ if (Meteor.isClient) {
                 uploadDate: -1
             }
         });
-    }
+    };
 
     Template.section1.selectedDataFile = function() {
         var s = Datafiles.findOne(Session.get('datafile'));
         return s ? s.filename : '';
-    }
+    };
 
     Template.section1.events = {
         'click .use-datafile': function() {
@@ -975,7 +753,7 @@ if (Meteor.isClient) {
                 var reader = new FileReader();
                 reader.onload = function(event) {
                     var csv = event.target.result;
-                    utility.processCSV(csv);
+                    Client.processCSV(csv);
                 };
 
                 if (file.blob) {
@@ -984,13 +762,13 @@ if (Meteor.isClient) {
                     reader.readAsText(file.file);
                 }
 
-                var output = ''
+                var output = '';
                 output += '<span style="font-weight:bold;">' + escape(file.filename) + '</span><br />\n';
                 output += ' - FileType: ' + (file.contentType || 'n/a') + '<br />\n';
                 output += ' - FileSize: ' + file.length + ' bytes<br />\n';
 
                 Session.set('metadata', output);
-                utility.goto(2);
+                Client.goto(2);
             });
         },
         'click .delete-datafile': function() {
@@ -1006,7 +784,9 @@ if (Meteor.isClient) {
 
             customerName = prompt('Customer Name');
 
-            if (customerName = null) customerName = '';
+            if (customerName === null) {
+                customerName = '';
+            }
 
             Datafiles.storeFile(file, {
                 customer: customerName,
@@ -1014,7 +794,7 @@ if (Meteor.isClient) {
             });
 
             // read the file metadata
-            var output = ''
+            var output = '';
             output += '<span style="font-weight:bold;">' + escape(file.name) + '</span><br />\n';
             output += ' - FileType: ' + (file.type || 'n/a') + '<br />\n';
             output += ' - FileSize: ' + file.size + ' bytes<br />\n';
@@ -1029,46 +809,46 @@ if (Meteor.isClient) {
             reader.readAsText(file);
             reader.onload = function(event) {
                 var csv = event.target.result;
-                utility.processCSV(csv);
+                Client.processCSV(csv);
             };
 
             reader.onerror = function() {
                 alert('Unable to read ' + file.fileName);
             };
         }
-    }
+    };
 
     //May change to static CSS
     Template.section1.rendered = function() {
         //Style
         $('section').css('min-height', $(window).height() / 5 * 4);
         $('section').css('margin-top', $(window).height() / 5);
-    }
+    };
     Template.section2.rendered = function() {
         //Style
         $('section').css('min-height', $(window).height() / 5 * 4);
         $('section').css('margin-top', $(window).height() / 5);
-    }
+    };
     Template.section3.rendered = function() {
         //Style
         $('section').css('min-height', $(window).height() / 5 * 4);
         $('section').css('margin-top', $(window).height() / 5);
-    }
+    };
 
     Template.section2.list = function() {
         return Schemas.find({
             owner: Meteor.userId()
         });
-    }
+    };
 
     Template.section2.dev = function() {
         return Session.get('dev');
-    }
+    };
 
     Template.section2.selectedSchema = function() {
         var s = Schemas.findOne(Session.get('schema'));
         return s ? s.schema : '';
-    }
+    };
 
     Template.section2.events = {
         'click .use-schema': function() {
@@ -1076,102 +856,375 @@ if (Meteor.isClient) {
 
             try {
                 goal = JSONfn.parse(this.goal);
-                utility.prepareGoal(goal);
 
-                utility.goto(3);
-                utility.render();
+                current = goal[0];
+                cursor = current.statement;
+
+                Client.updateGoal(goal);
+
+                Client.goto(3);
+                Client.render();
             } catch (err) {
                 console.error(err);
             }
         },
         'click .delete-schema': function() {
-            Schemas.remove(this._id);
+            var choice = confirm('Deleted files cannot be recovered. Do you want to proceed?');
+
+            if (choice) {
+                Schemas.remove(this._id);
+            }
         },
         'click .download-schema': function() {
 
             $('.download-schema').attr('href', "data:text/json;charset=utf-8, " + escape(this.goal));
+        },
+        'click .new-schema': function() {
+
+            var schema = prompt('Schema Name');
+            var goal = [{
+                header: "Column1",
+                statement: [],
+                validation: {
+                    allowBlank: null,
+                    fixedLength: null,
+                    maxValue: null,
+                    minValue: null,
+                    type: null,
+                    pattern: null,
+                    dictionary: null,
+                    date: null
+                },
+                rules: null
+            }];
+
+            if (schema) {
+                Schemas.insert({
+                    schema: schema,
+                    goal: JSONfn.stringify(goal),
+                    owner: Meteor.userId()
+                });
+            }
         }
-    }
+    };
+
+    Template.section3.events = {
+        'click .add-column': function() {
+            var pages = $('#paging').bootstrapPaginator("getPages");
+            var index = pages.current;
+
+            var adjustStatement = function(statement) {
+                _.each(statement, function(element) {
+                    if (element.subtype === 'circular') {
+                        if (element.col >= index) {
+                            element.col += 1;
+                        }
+                    }
+
+                    if (element.type == "condition") {
+                        adjustStatement(element['if']);
+                        adjustStatement(element['then']);
+                        adjustStatement(element['else']);
+                    } else if (element.type == "nest") {
+                        adjustStatement(element['child']);
+                    }
+                });
+            };
+
+            title = prompt("What is the new column title?");
+
+
+            goal.splice(index, 0, {
+                header: title,
+                statement: [],
+                validation: {
+                    allowBlank: null,
+                    fixedLength: null,
+                    maxValue: null,
+                    minValue: null,
+                    type: null,
+                    pattern: null,
+                    dictionary: null,
+                    date: null
+                },
+                rules: null
+            });
+
+            //Adjust references
+            _.each(goal, function(g, index, list) {
+                adjustStatement(g.statement);
+            });
+
+            current = goal[index];
+            cursor = current.statement;
+            Client.render();
+            Client.modified = true;
+            Client.updateGoal(goal);
+        },
+        'click .edit-column': function() {
+            var pages = $('#paging').bootstrapPaginator("getPages");
+            var index = pages.current - 1;
+
+            current = goal[index];
+
+            current.header = prompt('New Column Name');
+            cursor = current.statement;
+            Client.render();
+            Client.modified = true;
+            Client.updateGoal(goal);
+        },
+        'click .delete-column': function() {
+            var pages = $('#paging').bootstrapPaginator("getPages");
+            var index = pages.current - 1;
+
+            var adjustStatement = function(statement) {
+                _.each(statement, function(element) {
+                    if (element.subtype === 'circular') {
+                        if (element.col == index) {
+                            //Bad reference
+                            element.col = -1;
+                            console.log('Bad reference');
+                        } else if (element.col > index) {
+                            element.col -= 1;
+                        }
+                    }
+
+                    if (element.type == "condition") {
+                        adjustStatement(element['if']);
+                        adjustStatement(element['then']);
+                        adjustStatement(element['else']);
+                    } else if (element.type == "nest") {
+                        adjustStatement(element['child']);
+                    }
+                });
+            };
+
+            //Remove from Goal
+            goal.splice(index, 1);
+
+            var options = {
+                currentPage: pages.current == pages.last ? pages.current - 1 : pages.current,
+                totalPages: goal.length
+            };
+
+            //Adjust references
+            _.each(goal, function(g, index, list) {
+                console.log("Adjust references: ", g.statement);
+                adjustStatement(g.statement);
+            });
+
+            //Remove from Pages
+            $('#paging').bootstrapPaginator(options);
+
+            if (options.currentPage > 0) {
+                current = goal[options.currentPage - 1];
+            } else {
+                current = goal[options.currentPage];
+            }
+
+            cursor = current.statement;
+            Client.render();
+            Client.modified = true;
+            Client.updateGoal(goal);
+        }
+    };
 
     Template.section3.metadata = function() {
         return Handlebars.SafeString(Session.get('metadata'));
-    }
+    };
 
     Template.toolbox.events = {
         'click a.add': function(e) {
             var key = e.target.name;
 
             if (key === undefined || key === '') {
-                console.error('add operator has error. name is undefined')
+                console.error('add operator has error. name is undefined');
                 return;
             }
 
-            utility.add(key);
+            Client.add(key);
         },
 
         'click .delete': function() {
             cursor.pop();
-            utility.render();
+            Client.modified = true;
+            Client.render();
         },
 
-        'blur #desired-date-format': function(e) {
-            var format = $('#desired-date-format').val();
-            current.validation.date = format;
+        'blur #target-date-format': function(e) {
+            current.validation.targetDateFormat = $('#target-date-format').val();
         },
 
         'blur #source-date-format': function(e) {
-            DATE_FORMAT = $('#source-date-format').val();
+            DATE_FORMAT = current.validation.sourceDateFormat = $('#source-date-format').val();
         }
-    }
+    };
+
+    Template.preview.firstPage = function() {
+        return Session.get('resultPage') > 0;
+    };
+
+    Template.preview.events = {
+        'click .next': function() {
+
+            var page = Session.get('resultPage');
+            Session.set('resultPage', page + 1);
+
+            _.defer(function() {
+                var jobID = Random.id();
+
+                Meteor.call('crunchData', csvData, JSONfn.stringify(goal), jobID, false, page + 1, function(error, result) {
+                    preview_table.loadData(result.valid);
+                    $('.preview-valid').text("Preview valid rows");
+                });
+
+                var interval = setInterval(function() {
+                    var job = Status.findOne(jobID);
+                    var percentageComplete = Math.floor(job.processed / job.total * 100);
+
+                    if (percentageComplete == 100) {
+                        clearInterval(interval);
+                    } else {
+                        $('.preview-valid').text(percentageComplete + "% complete");
+                    }
+                }, 500);
+            });
+        },
+        'click .prev': function() {
+
+            var page = Session.get('resultPage');
+
+            if (page === 0) {
+                return;
+            }
+
+            Session.set('resultPage', page - 1);
+
+            _.defer(function() {
+                var jobID = Random.id();
+                Meteor.call('crunchData', csvData, JSONfn.stringify(goal), jobID, false, page - 1, function(error, result) {
+                    preview_table.loadData(result.valid);
+                    $('.preview-valid').text("Preview valid rows");
+                });
+
+                var interval = setInterval(function() {
+                    var job = Status.findOne(jobID);
+                    var percentageComplete = Math.floor(job.processed / job.total * 100);
+
+                    if (percentageComplete == 100) {
+                        clearInterval(interval);
+                    } else {
+                        $('.preview-valid').text(percentageComplete + "% complete");
+                    }
+                }, 500);
+            });
+        }
+    };
 
     Template.mapping.events = {
-
+        'click .collapse-validation': function() {
+            $('#validation').slideToggle();
+        },
         'click .preview-valid': function(evt) {
             var that = $(evt.target);
 
             that.text("loading…");
 
             _.defer(function() {
-                that.text("Preview valid rows");
+                var jobID = Random.id();
+                Meteor.call('crunchData', csvData, JSONfn.stringify(goal), jobID, false, 0, function(error, result) {
+                    Session.set('result', result.valid);
+                    Session.set('resultPage', 0);
 
-                var data = Core.prepareData(csvData, goal);
-                invalid_table.loadData(data.valid.slice(0, 50));
+                    $('#error-count').empty();
+                    $('#error-box').empty();
 
-                $('#error-count').empty();
-                $('#error-box').empty();
+                    that.text("Preview valid rows");
+                    preview_table.loadData(result.valid.slice(0, 25));
+                });
 
-                var headers = _.pluck(goal, 'header');
-                data.valid.unshift(headers);
-                $('.download-csv').attr('href', "data:text/csv;charset=utf-8, " + escape($.csv.fromArrays(data.valid)));
+                var interval = setInterval(function() {
+                    var job = Status.findOne(jobID);
+                    var percentageComplete = Math.floor(job.processed / job.total * 100);
+
+                    if (percentageComplete == 100) {
+                        clearInterval(interval);
+                    } else {
+                        that.text(percentageComplete + "% complete");
+                    }
+                }, 500);
             });
         },
+
+        'click .process-all': function(evt) {
+            var that = $(evt.target);
+            that.text("loading…");
+
+            _.defer(function() {
+                var jobID = Random.id();
+                Meteor.call('crunchData', csvData, JSONfn.stringify(goal), jobID, true, function(error, result) {
+                    var headers = _.pluck(goal, 'header');
+                    result.valid.unshift(headers);
+
+                    that.attr('href', "data:text/csv;charset=utf-8, " + escape($.csv.fromArrays(result.valid)));
+                    that.text("Download Cleaned Data as CSV");
+                    that.removeClass('btn-primary').addClass('btn-success').attr('download', 'compiled.csv');
+                });
+
+                var interval = setInterval(function() {
+                    var job = Status.findOne(jobID);
+                    var percentageComplete = Math.floor(job.processed / job.total * 100);
+
+                    if (percentageComplete == 100) {
+                        clearInterval(interval);
+                    } else {
+                        that.text(percentageComplete + "% complete");
+                    }
+                }, 500);
+            });
+        },
+
         'click .preview': function(evt) {
             var that = $(evt.target);
             that.text("loading…");
 
             _.defer(function() {
+                var jobID = Random.id();
+                Meteor.call('crunchData', csvData, JSONfn.stringify(goal), jobID, false, function(error, result) {
+                    Session.set('result', result.invalid);
+                    Session.set('resultPage', 0);
+                    if (result.invalid.length > 0) {
+                        $('#error-box').empty();
 
-                var data = Core.prepareData(csvData, goal);
+                        console.log(result.errors);
+                        _.each(result.errors, function(err) {
+                            $('#error-box').append(err + '<br>');
+                        });
 
-                if (data.invalid.length > 0) {
+                        that.text("Preview invalid rows");
+                        $('#error-count').text(result.invalid.length + ' rows are invalid. Please correct the errors');
 
-                    invalid_table.loadData(data.invalid.slice(0, 50));
+                        preview_table.loadData(result.invalid.slice(0, 25));
+                    } else {
+                        $('#error-box').empty();
+                        $('#error-count').empty().text('There are no errors');
+                        that.text("Preview invalid rows");
+                        preview_table.loadData([]);
+                    }
+                });
 
-                    $('#error-box').empty();
-                    _.each(data.errors, function(error) {
-                        $('#error-box').append(error + '<br>');
-                    });
+                var interval = setInterval(function() {
+                    var job = Status.findOne(jobID);
+                    var percentageComplete = Math.floor(job.processed / job.total * 100);
 
-                    that.text("Preview invalid rows");
+                    if (percentageComplete == 100) {
+                        clearInterval(interval);
+                    } else {
+                        that.text(percentageComplete + "% complete");
+                    }
+                }, 500);
 
-                    $('#error-count').text(data.invalid.length + '/' + (data.valid.length + data.invalid.length) + ' rows are invalid. Please correct the errors.')
-                } else {
-                    $('#error-count').empty().text('There are no errors');
-                }
 
-                var headers = _.pluck(goal, 'header');
-                data.valid.unshift(headers);
-                $('.download-csv').attr('href', "data:text/csv;charset=utf-8, " + escape($.csv.fromArrays(data.valid)));
             });
         },
 
@@ -1183,9 +1236,12 @@ if (Meteor.isClient) {
             });
 
             $(e.target).toggleClass('btn-primary btn-success').text('Saved!');
+
             setTimeout(function() {
                 $(e.target).toggleClass('btn-primary btn-success').text('Save');
             }, 2000);
+
+            Client.modified = false;
         },
 
         'click .save-config-new': function(e) {
@@ -1204,10 +1260,10 @@ if (Meteor.isClient) {
             setTimeout(function() {
                 $(e.target).toggleClass('btn-primary btn-success').text('Save as');
             }, 2000);
+
+            Client.modified = false;
         }
-
-
-    }
+    };
 
     Meteor.startup(function() {
 
@@ -1219,6 +1275,8 @@ if (Meteor.isClient) {
             minSpareRows: 0,
             rowHeaders: true,
             contextMenu: true,
+            colWidths: "120px",
+            manualColumnResize: true,
             afterLoadData: function() {
                 var that = this;
                 that.validateCells(function() {
@@ -1227,10 +1285,10 @@ if (Meteor.isClient) {
             }
         });
 
-        invalid_table = $container_invalid.data('handsontable');
+        preview_table = $container_invalid.data('handsontable');
 
         //Check for files API in browser
-        if (utility.isAPIAvailable()) {
+        if (Client.isAPIAvailable()) {
             $('#sample').bind('change', handleSampleFileSelect);
 
             $('#template').bind('change', handleTemplateSelect);
@@ -1264,7 +1322,7 @@ if (Meteor.isClient) {
                             date: null
                         },
                         rules: null
-                    }
+                    };
                 });
 
                 console.table(g);
@@ -1286,7 +1344,7 @@ if (Meteor.isClient) {
                                 memo[i].validation.pattern = "^[a-zA-Z]+$";
                             } else if (value.match(/^[a-zA-Z0-9]+$/)) { //Alpha Numeric
                                 memo[i].validation.pattern = "^[a-zA-Z0-9]+$";
-                            } else if (utility.isNumber(value)) {
+                            } else if (Client.isNumber(value)) {
                                 memo[i].validation.type = 'number';
                             } else if (value.match(/^(0?[1-9]|1[012])[- \/.](0?[1-9]|[12][0-9]|3[01])[- \/.](19|20)?[0-9]{2}$/)) {
                                 memo[i].validation.type = 'date';
@@ -1298,7 +1356,7 @@ if (Meteor.isClient) {
                             memo[i].validation.dictionary = [];
                         }
 
-                        //Check blank        
+                        //Check blank
                         if (value === null || value === '' || value === undefined) {
                             memo[i].validation.allowBlank = true;
                         }
@@ -1306,7 +1364,7 @@ if (Meteor.isClient) {
                         //Check fixed Length
                         if (index === 0) {
                             memo[i].validation.fixedLength = value.length;
-                        } else if (memo[i].validation.fixedLength != null && memo[i].validation.fixedLength != value.length) {
+                        } else if (memo[i].validation.fixedLength !== null && memo[i].validation.fixedLength != value.length) {
                             memo[i].validation.fixedLength = null;
                         }
 
@@ -1317,16 +1375,16 @@ if (Meteor.isClient) {
                         }
 
                         //Check Max Value
-                        if (index === 0 && utility.isNumber(value)) {
-                            memo[i].validation.maxValue = parseFloat(value);;
-                        } else if (memo[i].validation.maxValue != null && memo[i].validation.maxValue < parseFloat(value)) {
+                        if (index === 0 && Client.isNumber(value)) {
+                            memo[i].validation.maxValue = parseFloat(value);
+                        } else if (memo[i].validation.maxValue !== null && memo[i].validation.maxValue < parseFloat(value)) {
                             memo[i].validation.maxValue = parseFloat(value);
                         }
 
                         //Check Min Value
-                        if (index === 0 && utility.isNumber(value)) {
-                            memo[i].validation.minValue = parseFloat(value);;
-                        } else if (memo[i].validation.minValue != null && memo[i].validation.minValue > parseFloat(value)) {
+                        if (index === 0 && Client.isNumber(value)) {
+                            memo[i].validation.minValue = parseFloat(value);
+                        } else if (memo[i].validation.minValue !== null && memo[i].validation.minValue > parseFloat(value)) {
                             memo[i].validation.minValue = parseFloat(value);
                         }
                     }
@@ -1336,19 +1394,15 @@ if (Meteor.isClient) {
 
                 //Clean up step
                 goal = _.map(gg, function(col) {
-                    if (col.validation.dictionary != null && col.validation.dictionary.length > 8) {
+                    if (col.validation.dictionary !== null && col.validation.dictionary.length > 8) {
                         col.validation.dictionary = null;
-                    }
-
-                    if (col.validation.allowBlank == null) {
-                        col.validation.allowBlank = false;
                     }
 
                     return col;
                 });
 
-                utility.saveGoal(goal);
-            }
+                Client.saveGoal(goal);
+            };
         }
 
         function handleTemplateSelect(evt) {
@@ -1363,175 +1417,398 @@ if (Meteor.isClient) {
                 try {
                     goal = JSONfn.parse(text);
 
-                    utility.saveGoal(goal);
+                    Client.saveGoal(goal);
                 } catch (err) {
                     console.error(err);
                 }
-            }
+            };
         }
 
         //Initialize data binding for the validation definition form
         (function() {
             var val = $('#validation');
 
-            val.find('[name=allowBlank]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=allowBlank]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.allowBlank = true;
                 } else {
                     current.validation.allowBlank = false;
                 }
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=type]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=type]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.type = $(this).val();
                 }
 
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=hasFixedLength]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=hasFixedLength]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.fixedLength = 10;
                 } else {
                     current.validation.fixedLength = null;
                 }
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=hasMaxValue]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=hasMaxValue]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.maxValue = 10;
                 } else {
                     current.validation.maxValue = null;
                 }
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=hasMinValue]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=hasMinValue]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.minValue = 0;
                 } else {
                     current.validation.minValue = null;
                 }
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=hasPattern]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=hasPattern]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.pattern = '';
                 } else {
                     current.validation.pattern = null;
                 }
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=hasDictionary]').change(function() {
-                if ($(this).attr('checked')) {
+            val.find('[name=hasDictionary]').on('change', function() {
+                if ($(this).prop('checked')) {
                     current.validation.dictionary = [];
                 } else {
                     current.validation.dictionary = null;
                 }
-                utility.render();
+                Client.render();
             });
 
-            val.find('[name=fixedLength]').change(function() {
+            val.find('[name=hasExcludeDictionary]').on('change', function() {
+                if ($(this).prop('checked')) {
+                    current.validation.excludeDictionary = [];
+                } else {
+                    current.validation.excludeDictionary = null;
+                }
+                Client.render();
+            });
+
+            val.find('[name=fixedLength]').on('change', function() {
                 current.validation.fixedLength = $(this).val();
             });
 
-            val.find('[name=maxValue]').change(function() {
+            val.find('[name=maxValue]').on('change', function() {
                 current.validation.maxValue = $(this).val();
             });
 
-            val.find('[name=minValue]').change(function() {
+            val.find('[name=minValue]').on('change', function() {
                 current.validation.minValue = $(this).val();
             });
-            val.find('[name=pattern]').change(function() {
+            val.find('[name=pattern]').on('change', function() {
                 current.validation.pattern = $(this).val();
             });
-            val.find('[name=dictionary]').change(function() {
+            val.find('[name=dictionary]').on('change', function() {
                 current.validation.dictionary = $(this).val().split('\n');
             });
-        })()
+            val.find('[name=excludeDictionary]').on('change', function() {
+                current.validation.excludeDictionary = $(this).val().split('\n');
+            });
+        })();
+
+
+        window.onbeforeunload = function(e) {
+            if (Client.modified) {
+                var message = "You have not saved the changes made to the Schema. Are you sure you want to exit?",
+                    e = e || window.event;
+                // For IE and Firefox
+                if (e) {
+                    e.returnValue = message;
+                }
+
+                // For Safari
+                return message;
+            }
+        };
     });
 }
 
 if (Meteor.isServer) {
     var API = {
         google: 'AIzaSyBOJAnw6BiKa0nCRQEj5WS7oILiJDxZ2gY'
-    }
+    };
 
-    Meteor.methods({
-        resolveLocation: function(name) {
-            var url = 'http://api.geonames.org/search?fuzzy=0.8&maxRows=10&type=json&orderby=relevance&username=gtl_builder&q=' + name;
+    Server = _.extend(Server, {
+        isNumber: function(n) {
+            return !isNaN(parseFloat(n)) && isFinite(n);
+        },
 
-            Meteor.http.get(url, function(err, response) {
+        crunchData: function(raw, schema, jobID, crunchAll, offset) {
+            schema = JSONfn.parse(schema);
 
-                //Sort by population
-                var city = _.max(response.data.geonames, function(place) {
-                    return place.population;
+            var result = {
+                valid: [],
+                invalid: [],
+                errors: [],
+                summary: {
+                    average: [],
+                    count: [],
+                    sum: []
+                }
+            };
+
+            var job = {
+                _id: jobID,
+                total: (crunchAll) ? raw.length : _.min([25, raw.length]),
+                processed: 0
+            };
+
+            Status.insert(job);
+
+            _.each(raw[0], function(col, index) {
+                result.summary.count[index] = 0;
+                result.summary.sum[index] = 0;
+            });
+
+            result.summary = _.reduce(raw, function(memo, row) {
+                _.each(row, function(cell, index) {
+                    if (Server.isNumber(cell)) {
+                        memo.count[index]++;
+                        memo.sum[index] += parseFloat(cell);
+                    }
                 });
 
-                if (city) {
+                return memo;
+            }, result.summary);
 
-                    console.log(city);
+            _.each(result.summary.count, function(value, index) {
+                if (value > 0) {
+                    result.summary.average[index] = result.summary.sum[index] / value;
+                }
+            });
 
-                    Cities.upsert(name, {
-                        $set: {
-                            name: name,
-                            ascii: name,
-                            lat: parseFloat(city.lat),
-                            lon: parseFloat(city.lng),
-                            population: city.population,
-                            country: city.countryCode
-                        }
-                    });
+            if (crunchAll === false) {
+                raw = raw.splice(offset * 25, 25);
+            }
+
+            _.each(raw, function(row, rindex) {
+                var isValid = true;
+                var computedRow = [];
+
+                _.each(schema, function(col, cindex) {
+                    var value = Meteor.call('compute', col.statement, row, computedRow, col.validation, result.summary, rindex);
+                    if (value && value._isAMomentObject && col.validation.targetDateFormat) {
+                        value = value.format(col.validation.targetDateFormat);
+                    }
+
+                    var error = Meteor.call('validate', value, col.validation, rindex + 1);
+
+                    if (error) {
+                        isValid = false;
+                        result.errors.push(error);
+                    }
+
+                    computedRow.push(value);
+                });
+
+                if (isValid) {
+                    result.valid.push(computedRow);
                 } else {
-                    console.log("location not found ", name);
+                    result.invalid.push(computedRow);
                 }
 
-            })
+                Status.update(jobID, {
+                    $inc: {
+                        processed: 1
+                    }
+                });
+            });
+
+            //Pipe output into database;
+
+            // if (getValid) {
+            //     return result.valid.slice(0, 25);
+            // } else {
+            //     return result.invalid.slice(0, 25), result.errors;
+            // }
+
+            return result;
+        },
+
+        compute: function(statement, data, computedRow, validation, summary, rindex) {
+            var holder = null;
+            var operator = null;
+            var element = null;
+
+            var _lookup = function(value) {
+                return value;
+            };
+
+            var lookup = _lookup;
+
+            var cond, result, value;
+
+            statement = _.clone(statement);
+
+            //Process all elements
+            while (statement.length > 0) {
+                // reverse stack
+                element = statement.shift();
+                if (element.type == 'condition') {
+                    cond = Meteor.call('compute', element['if'], data, computedRow, validation, summary, rindex);
+
+                    if (typeof cond == 'boolean') {
+                        if (cond) {
+                            result = Meteor.call('compute', element['then'], data, computedRow, validation, summary, rindex);
+                            return result;
+                        } else {
+                            result = Meteor.call('compute', element['else'], data, computedRow, validation, summary, rindex);
+                            return result;
+                        }
+                    } else {
+
+                        console.error('Invalid if condition');
+
+                    }
+
+                } else if (element.type == 'nest') {
+                    result = Meteor.call('compute', element.child, data, computedRow, validation, summary, rindex);
+
+                    if (holder === null && operator === null) {
+                        holder = result;
+                    } else if (holder !== null && operator !== null) {
+                        holder = operator(holder, result);
+                        operator = null;
+                    } else {
+                        console.error('invalid statement');
+                    }
+
+                } else if (element.type == 'field' || element.type == 'constant') {
+                    // try to parse data
+
+                    if (element.type == 'field') {
+                        //Try to prevent circulars
+                        if (element.subtype === 'circular') {
+                            value = computedRow[element.col];
+                        } else if (element.subtype === 'rindex') {
+                            value = rindex + 1;
+                        } else {
+                            value = data[element.col];
+                        }
+                    } else if (element.type == 'constant') {
+                        value = element.value;
+                    }
+
+                    if (typeof value == 'string') {
+                        value = value.trim();
+
+                        if (Server.isNumber(value)) {
+                            value = parseFloat(value);
+                            //Try to find a unit
+                            if (statement.length > 0 && statement[0].type == 'unit') {
+                                console.log('a wild unit appeared');
+                                value = statement[0].fn(value);
+
+                                statement.shift();
+                            }
+                        } else if (validation.sourceDateFormat) {
+                            if (moment(value, validation.sourceDateFormat).isValid()) {
+                                value = moment(value, validation.sourceDateFormat);
+                            } else {
+                                console.log('invalid date format', validation.sourceDateFormat, value);
+                            }
+                        }
+                    }
+
+                    if (holder === null) {
+                        if (operator === null) {
+                            holder = lookup(value, element.col, summary);
+                            lookup = _lookup;
+                        } else {
+                            console.error('invalid statement');
+                        }
+                    } else {
+                        if (operator !== null) {
+                            holder = operator(holder, lookup(value, element.col, summary));
+                            lookup = _lookup;
+                            operator = null;
+                        } else {
+                            console.error('invalid statement');
+                        }
+                    }
+                } else if (element.type == 'operator') {
+                    if (holder === null) {
+                        console.error('invalid statement', 'missing holder element');
+                    } else if (operator !== null) {
+                        console.error('invalid statement', 'consecutive operator');
+                    } else {
+                        operator = element.fn;
+                    }
+
+                } else if (element.type == 'transform') {
+                    if (holder === null) {
+                        console.error('invalid statement', 'missing holder element');
+                    } else if (operator !== null) {
+                        console.error('invalid statement', 'consecutive operator');
+                    } else {
+                        holder = element.fn(holder);
+                    }
+                } else if (element.type == 'lookup') {
+                    lookup = element.fn;
+                }
+            }
+
+            //No more elements
+            return holder;
+        },
+
+        validate: function(data, validation, rindex) {
+            var isBlank;
+
+            if (data === '' || data === undefined || data === null) {
+                isBlank = true;
+            }
+
+            if (validation.allowBlank === false && isBlank) {
+                return 'Blank cell found at row ' + rindex;
+            } else if (validation.allowBlank === true && isBlank) {
+                return;
+            } else if (validation.fixedLength !== null && data.length != validation.fixedLength) {
+                return 'Value Length Violation at row ' + rindex;
+            } else if (validation.pattern !== null && typeof data == 'string' && !data.match(new RegExp(validation.pattern))) {
+                return 'Data Pattern Violation at row ' + rindex;
+            } else if (validation.type !== null) {
+                //TODO
+                return;
+                // } else if (validation.targetDateFormat && !moment(validation.targetDateFormat, data).isValid()) {
+                // return;
+            } else if (validation.maxValue !== null && parseFloat(data) > validation.maxValue) {
+                return 'Data Range Violation at row ' + rindex;
+            } else if (validation.minValue !== null && parseFloat(data) < validation.minValue) {
+                return 'Data Range Violation at row ' + rindex;
+            } else if (validation.dictionary !== null && !_.contains(validation.dictionary, data)) {
+                return 'Whitelist Violation at row ' + rindex;
+            } else if (validation.excludeDictionary !== null && _.contains(validation.excludeDictionary, data)) {
+                return 'Blacklist Violation at row ' + rindex;
+            } else {
+                return;
+            }
         }
     });
 
-    Meteor.publish("rooms", function() {
-        return [Schemas.find({}), Datafiles.find({})];
-    });
-
-    var csv = Meteor.require('CSV');
-    var fs = Meteor.require('fs');
-    var path = Npm.require('path');
-
-
-    function loadData() {
-        var basepath = path.resolve('.').split('.meteor')[0];
-
-        csv().from.stream(
-            fs.createReadStream(basepath + 'private/cities.csv'), {
-                'escape': '\"'
-            })
-            .on('record', Meteor.bindEnvironment(function(row, index) {
-                Cities.insert({
-                    '_id': row[0],
-                    'name': row[1],
-                    'ascii': row[2],
-                    'alt': row[3],
-                    'lat': parseFloat(row[4]),
-                    'lon': parseFloat(row[5]),
-                    'country': row[6],
-                    'population': parseInt(row[7])
-                })
-            }, function(error) {
-                console.log('Error in bindEnvironment:', error);
-            }))
-            .on('error', function(err) {
-                console.log('Error reading CSV:', err);
-            })
-            .on('end', function(count) {
-                console.log(count, 'records read');
-            });
-
+    console.log("=== Server Function List ===");
+    for (var k in Server) {
+        console.log(k);
     }
-    // loadData();
+
+    Meteor.methods(Server);
+
+    Meteor.publish("data", function() {
+        return [Schemas.find({}), Status.find({})];
+    });
 }

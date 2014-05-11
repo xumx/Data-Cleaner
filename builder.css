@@ -18,21 +18,20 @@
 .map-input.emerald {
     border-color: #2ecc71 !important;
 }
-
-.label {
-	display: inline-block;
+.orange-badge {
+    background-color:orange;
 }
-
+.label {
+    display: inline-block;
+}
 .nested {
     margin-left: 4em;
 }
-
 .hover {
     margin-right: 5px;
     padding-right: 5px;
     padding-left: 5px;
 }
-
 .hover:hover {
     background-color: #f1c40f
 }
