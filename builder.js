@@ -8,7 +8,28 @@
 debug = null;
 
 Schemas = new Meteor.Collection('schema');
-Datafiles = new CollectionFS('datafile');
+
+FS.HTTP.setHeadersForGet([
+    ['Cache-Control', 'public, max-age=31536000']
+]);
+
+var fileStore = new FS.Store.GridFS("datafile");
+Datafiles = new FS.Collection("datafile", {
+    stores: [fileStore],
+    filter: {
+        maxSize: 10485760, //in bytes
+        allow: {
+            extensions: ['csv']
+        },
+        onInvalid: function(message) {
+            if (Meteor.isClient) {
+                alert(message);
+            } else {
+                console.warn(message);
+            }
+        }
+    }
+});
 
 Cities = new Meteor.Collection('cities');
 Status = new Meteor.Collection('status');
@@ -749,7 +770,8 @@ if (Meteor.isClient) {
         'click .use-datafile': function() {
             Session.set('datafile', this._id);
 
-            Datafiles.retrieveBlob(this._id, function(file) {
+            //BUG
+            Datafiles.getFileRecord(this._id, function(file) {
                 var reader = new FileReader();
                 reader.onload = function(event) {
                     var csv = event.target.result;
@@ -757,9 +779,9 @@ if (Meteor.isClient) {
                 };
 
                 if (file.blob) {
-                    reader.readAsText(file.blob);
+                    reader.readAsText(file.blob, 'ISO-8859-1');
                 } else {
-                    reader.readAsText(file.file);
+                    reader.readAsText(file.file, 'ISO-8859-1');
                 }
 
                 var output = '';
@@ -778,44 +800,53 @@ if (Meteor.isClient) {
                 Datafiles.remove(this._id);
             }
         },
-        'change #files': function(evt) {
-            var files = evt.target.files;
-            var file = files[0];
+        'change #files': FS.EventHandlers.insertFiles(Datafiles, {
+            metadata: function(fileObj) {
+                customerName = prompt('Customer Name');
 
-            customerName = prompt('Customer Name');
+                if (customerName === null) {
+                    customerName = '';
+                }
 
-            if (customerName === null) {
-                customerName = '';
+                return {
+                    customer: customerName,
+                    owner: Meteor.userId()
+                };
+            },
+            after: function(error, fileObj) {
+                console.log("Inserted", fileObj.name);
             }
+        }),
 
-            Datafiles.storeFile(file, {
-                customer: customerName,
-                owner: Meteor.userId()
-            });
-
-            // read the file metadata
-            var output = '';
-            output += '<span style="font-weight:bold;">' + escape(file.name) + '</span><br />\n';
-            output += ' - FileType: ' + (file.type || 'n/a') + '<br />\n';
-            output += ' - FileSize: ' + file.size + ' bytes<br />\n';
-            output += ' - LastModified: ' + (file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a') + '<br />\n';
-
-            // post the results
-            Session.set('metadata', output);
+        // function(evt) {
 
 
-            // Read the file contents
-            var reader = new FileReader();
-            reader.readAsText(file);
-            reader.onload = function(event) {
-                var csv = event.target.result;
-                Client.processCSV(csv);
-            };
 
-            reader.onerror = function() {
-                alert('Unable to read ' + file.fileName);
-            };
-        }
+
+
+        // // read the file metadata
+        // var output = '';
+        // output += '<span style="font-weight:bold;">' + escape(file.name) + '</span><br />\n';
+        // output += ' - FileType: ' + (file.type || 'n/a') + '<br />\n';
+        // output += ' - FileSize: ' + file.size + ' bytes<br />\n';
+        // output += ' - LastModified: ' + (file.lastModifiedDate ? file.lastModifiedDate.toLocaleDateString() : 'n/a') + '<br />\n';
+
+        // // post the results
+        // Session.set('metadata', output);
+
+
+        // // Read the file contents
+        // var reader = new FileReader();
+        // reader.readAsText(file);
+        // reader.onload = function(event) {
+        //     var csv = event.target.result;
+        //     Client.processCSV(csv);
+        // };
+
+        // reader.onerror = function() {
+        //     alert('Unable to read ' + file.fileName);
+        // };
+
     };
 
     //May change to static CSS
@@ -1809,6 +1840,6 @@ if (Meteor.isServer) {
     Meteor.methods(Server);
 
     Meteor.publish("data", function() {
-        return [Schemas.find({}), Status.find({})];
+        return [Schemas.find({}), Status.find({}), Datafiles.find({})];
     });
 }

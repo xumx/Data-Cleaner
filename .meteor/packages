@@ -5,7 +5,6 @@
 
 standard-app-packages
 insecure
-preserve-inputs
 jquery
 bootstrap
 accounts-password
@@ -17,3 +16,6 @@ amplify
 jquery-csv
 server-eval
 collectionFS
+cfs-gridfs
+cfs-filesystem
+cfs-ui
