@@ -33,8 +33,7 @@ var JSONfn = {
 
 if (Meteor.isClient) {
 
-    var rawHeader, goal, current, csvData, preview_table, cursor,
-        sessionKey = _.random(100, 999);
+    var rawHeader, goal, current, csvData, preview_table, cursor;
 
     Meteor.subscribe('data');
 
@@ -342,8 +341,7 @@ if (Meteor.isClient) {
                         cursor.push({
                             type: 'field',
                             text: row,
-                            col: rawHeader.length - index - 1,
-                            id: _.uniqueId('F' + sessionKey + '_')
+                            col: rawHeader.length - index - 1
                         });
                         Client.modified = true;
                         Client.render();
@@ -735,7 +733,7 @@ if (Meteor.isClient) {
             owner: Meteor.userId()
         }, {
             sort: {
-                uploadDate: -1
+                uploadDate: 1
             }
         });
     };
@@ -802,19 +800,6 @@ if (Meteor.isClient) {
 
             // post the results
             Session.set('metadata', output);
-
-
-            // Read the file contents
-            var reader = new FileReader();
-            reader.readAsText(file);
-            reader.onload = function(event) {
-                var csv = event.target.result;
-                Client.processCSV(csv);
-            };
-
-            reader.onerror = function() {
-                alert('Unable to read ' + file.fileName);
-            };
         }
     };
 
@@ -882,21 +867,32 @@ if (Meteor.isClient) {
         'click .new-schema': function() {
 
             var schema = prompt('Schema Name');
-            var goal = [{
-                header: "Column1",
-                statement: [],
-                validation: {
-                    allowBlank: null,
-                    fixedLength: null,
-                    maxValue: null,
-                    minValue: null,
-                    type: null,
-                    pattern: null,
-                    dictionary: null,
-                    date: null
-                },
-                rules: null
-            }];
+            if (schema == null) return;
+
+            var goal = [];
+
+            _.each(rawHeader.reverse(), function(header, index) {
+                goal.push({
+                    header: header,
+                    statement: [{
+                        "type": "field",
+                        "text": header,
+                        "col": index,
+                        "id": "F363_1"
+                    }],
+                    validation: {
+                        allowBlank: null,
+                        fixedLength: null,
+                        maxValue: null,
+                        minValue: null,
+                        type: null,
+                        pattern: null,
+                        dictionary: null,
+                        date: null
+                    },
+                    rules: null
+                });
+            });
 
             if (schema) {
                 Schemas.insert({
@@ -970,7 +966,7 @@ if (Meteor.isClient) {
             current.header = prompt('New Column Name');
 
             if (current.header == null) return;
-            
+
             cursor = current.statement;
             Client.render();
             Client.modified = true;
