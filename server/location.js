@@ -539,7 +539,7 @@ Server.findLocation = function(string, type) {
 
         result = Cities.findOne({
             alt: {
-                $regex: new RegExp(string, "i")
+                $regex: new RegExp("\\b" + string + "\\b", "i")
             }
         }, {
             sort: {

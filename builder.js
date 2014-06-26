@@ -496,7 +496,7 @@ if (Meteor.isClient) {
 
                     console.log(originalEvent.target);
 
-                    originalEvent.target.dispatchEvent(originalEvent);
+                    // originalEvent.target.dispatchEvent(originalEvent);
                     $('#source-date-format').val(current.validation.sourceDateFormat);
                     $('#target-date-format').val(current.validation.targetDateFormat);
                 }
@@ -757,9 +757,9 @@ if (Meteor.isClient) {
                 };
 
                 if (file.blob) {
-                    reader.readAsText(file.blob);
+                    reader.readAsText(file.blob, 'ISO-8859-1');
                 } else {
-                    reader.readAsText(file.file);
+                    reader.readAsText(file.file, 'ISO-8859-1');
                 }
 
                 var output = '';
@@ -968,6 +968,9 @@ if (Meteor.isClient) {
             current = goal[index];
 
             current.header = prompt('New Column Name');
+
+            if (current.header == null) return;
+            
             cursor = current.statement;
             Client.render();
             Client.modified = true;
