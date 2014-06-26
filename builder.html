@@ -1,20 +1,18 @@
 <head>
-    <script>
+<script>
     var TogetherJSConfig_siteName = "Data Robot";
     var TogetherJSConfig_toolName = "Robot Sync";
     var TogetherJSConfig_cloneClicks = true;
     var TogetherJSConfig_enableShortcut = true;
     var TogetherJSConfig_findRoom = "DataRobot";
     var TogetherJSConfig_suppressJoinConfirmation = true;
-    </script>
+</script>
     <script src="https://togetherjs.com/togetherjs-min.js"></script>
 </head>
-
 <body>
     <div class="container">
         <div class="pull-right" style="margin:10px;">
-            <button class="btn btn-primary" onclick="TogetherJS(this); return false;">Collaborate</button>
-        </div>
+        <button class="btn btn-primary" onclick="TogetherJS(this); return false;">Collaborate</button></div>
 
 
         <div class="well">
@@ -53,13 +51,11 @@
             {{#each files}}
             <tr>
                 <td>{{metadata.customer}}</td>
-                <td>{{this.name}}</td>
+                <td>{{filename}}</td>
                 <td>
-                    {{#unless this.isUploaded}} {{> FS.UploadProgressBar}} {{/unless}}
                     <div class="btn-group">
                         <button class="btn btn-xs btn-primary use-datafile" style="width:80px;">use</button>
-                        {{> FS.DeleteButton class="btn btn-danger btn-xs"}}
-                        <!-- <button class="btn btn-xs btn-danger delete-datafile" style="width:80px;">delete</button> -->
+                        <button class="btn btn-xs btn-danger delete-datafile" style="width:80px;">delete</button>
                     </div>
                 </td>
             </tr>
@@ -239,6 +235,8 @@
 </template>
 
 <template name="preview">
+    {{#constant}}
+
     <legend>
         <span style="color:red" id="error-count"></span>
     </legend>
@@ -247,6 +245,7 @@
         </div>
     </div>
     <div id="preview"></div>
+    {{/constant}}
     <br>
 
     <div>

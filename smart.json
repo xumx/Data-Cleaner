@@ -1,14 +1,15 @@
 {
-  "packages": {
-    "bootstrap-3": {},
-    "jquery-csv": {},
-    "houston": {},
-    "accounts-ui-bootstrap-dropdown": {},
-    "moment": {},
-    "kadira": {},
-    "npm": {},
-    "server-eval": {},
-    "collectionFS": {},
-    "cfs-ui": {}
-  }
+    "packages": {
+        "bootstrap-3": {},
+        "jquery-csv": {},
+        "houston": {},
+        "accounts-ui-bootstrap-dropdown": {},
+        "moment": {},
+        "npm": {},
+        "server-eval": {},
+        "collectionFS": {
+            "branch": "master",
+            "git": "https://github.com/CollectionFS/Meteor-CollectionFS.git"
+        }
+    }
 }
